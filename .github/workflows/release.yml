@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: '5.9'
+
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build Release Binary
+      run: |
+        swift build -c release
+
+        # Create distribution directory
+        mkdir -p dist
+
+        # Copy binary
+        cp .build/release/osx-bench dist/
+
+        # Strip debug symbols for smaller binary
+        strip dist/osx-bench
+
+        # Get binary info
+        file dist/osx-bench
+        ls -lh dist/osx-bench
+
+    - name: Create tarball
+      run: |
+        cd dist
+        tar -czvf osx-bench-macos-arm64.tar.gz osx-bench
+        shasum -a 256 osx-bench-macos-arm64.tar.gz > osx-bench-macos-arm64.tar.gz.sha256
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ steps.version.outputs.VERSION }}
+        body: |
+          ## Apple Silicon Bench ${{ steps.version.outputs.VERSION }}
+
+          ### Download
+
+          Download the binary for macOS (Apple Silicon):
+          - `osx-bench-macos-arm64.tar.gz` - Universal binary for M1/M2/M3/M4
+
+          ### Installation
+
+          ```bash
+          # Download and extract
+          curl -LO https://github.com/carlosacchi/apple-silicon-bench/releases/download/${{ steps.version.outputs.VERSION }}/osx-bench-macos-arm64.tar.gz
+          tar -xzf osx-bench-macos-arm64.tar.gz
+          chmod +x osx-bench
+
+          # Run benchmark
+          ./osx-bench run
+          ```
+
+          ### Quick Start
+
+          ```bash
+          # Full benchmark
+          ./osx-bench run
+
+          # Quick benchmark
+          ./osx-bench run --quick
+
+          # View system info
+          ./osx-bench info
+          ```
+
+          See [CHANGELOG.md](https://github.com/carlosacchi/apple-silicon-bench/blob/main/CHANGELOG.md) for full release notes.
+        files: |
+          dist/osx-bench-macos-arm64.tar.gz
+          dist/osx-bench-macos-arm64.tar.gz.sha256
+        draft: false
+        prerelease: false

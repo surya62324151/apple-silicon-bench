@@ -1,0 +1,264 @@
+import Foundation
+
+// MARK: - Benchmark Types
+
+enum BenchmarkType: String, CaseIterable, Codable {
+    case cpuSingleCore = "cpu-single"
+    case cpuMultiCore = "cpu-multi"
+    case memory = "memory"
+    case disk = "disk"
+
+    var displayName: String {
+        switch self {
+        case .cpuSingleCore: return "CPU Single-Core"
+        case .cpuMultiCore: return "CPU Multi-Core"
+        case .memory: return "Memory"
+        case .disk: return "Disk"
+        }
+    }
+}
+
+// MARK: - Individual Test Results
+
+struct TestResult: Codable {
+    let name: String
+    let value: Double
+    let unit: String
+    let higherIsBetter: Bool
+
+    init(name: String, value: Double, unit: String, higherIsBetter: Bool = true) {
+        self.name = name
+        self.value = value
+        self.unit = unit
+        self.higherIsBetter = higherIsBetter
+    }
+
+    var formattedValue: String {
+        if value >= 1_000_000 {
+            return String(format: "%.2f M", value / 1_000_000)
+        } else if value >= 1_000 {
+            return String(format: "%.2f K", value / 1_000)
+        } else if value < 1 {
+            return String(format: "%.4f", value)
+        } else {
+            return String(format: "%.2f", value)
+        }
+    }
+}
+
+// MARK: - Benchmark Category Results
+
+struct BenchmarkResult: Codable {
+    let type: BenchmarkType
+    let tests: [TestResult]
+    let duration: TimeInterval
+    let thermalStart: ThermalMonitor.ThermalLevel
+    let thermalEnd: ThermalMonitor.ThermalLevel
+
+    init(type: BenchmarkType, tests: [TestResult], duration: TimeInterval,
+         thermalStart: ThermalMonitor.ThermalLevel = .nominal,
+         thermalEnd: ThermalMonitor.ThermalLevel = .nominal) {
+        self.type = type
+        self.tests = tests
+        self.duration = duration
+        self.thermalStart = thermalStart
+        self.thermalEnd = thermalEnd
+    }
+
+    var hadThrottling: Bool {
+        thermalStart == .serious || thermalStart == .critical ||
+        thermalEnd == .serious || thermalEnd == .critical
+    }
+
+    var summary: String {
+        let testSummaries = tests.map { "\($0.name): \($0.formattedValue) \($0.unit)" }
+        return testSummaries.joined(separator: ", ")
+    }
+}
+
+// MARK: - Complete Results
+
+struct BenchmarkResults: Codable {
+    let timestamp: Date
+    let benchmarks: [BenchmarkResult]
+    let thermalData: [ThermalSnapshot]
+
+    init(benchmarks: [BenchmarkResult], thermalData: [ThermalSnapshot] = []) {
+        self.timestamp = Date()
+        self.benchmarks = benchmarks
+        self.thermalData = thermalData
+    }
+
+    func result(for type: BenchmarkType) -> BenchmarkResult? {
+        benchmarks.first { $0.type == type }
+    }
+
+    var hadAnyThrottling: Bool {
+        benchmarks.contains { $0.hadThrottling } ||
+        thermalData.contains { $0.level == .serious || $0.level == .critical }
+    }
+}
+
+// MARK: - Scores
+
+struct BenchmarkScores: Codable {
+    let cpuSingleCore: Double
+    let cpuMultiCore: Double
+    let memory: Double
+    let disk: Double
+    let total: Double
+
+    func printSummary() {
+        print("┌─────────────────────────────────────────────────────────────┐")
+        print("│                      BENCHMARK SCORES                       │")
+        print("├─────────────────────────────────────────────────────────────┤")
+        print("│                                                             │")
+        print("│   CPU Single-Core:    \(String(format: "%8.0f", cpuSingleCore).padding(toLength: 35, withPad: " ", startingAt: 0)) │")
+        print("│   CPU Multi-Core:     \(String(format: "%8.0f", cpuMultiCore).padding(toLength: 35, withPad: " ", startingAt: 0)) │")
+        print("│   Memory:             \(String(format: "%8.0f", memory).padding(toLength: 35, withPad: " ", startingAt: 0)) │")
+        print("│   Disk:               \(String(format: "%8.0f", disk).padding(toLength: 35, withPad: " ", startingAt: 0)) │")
+        print("│                                                             │")
+        print("├─────────────────────────────────────────────────────────────┤")
+        print("│                                                             │")
+        print("│   TOTAL SCORE:        \(String(format: "%8.0f", total).padding(toLength: 35, withPad: " ", startingAt: 0)) │")
+        print("│                                                             │")
+        print("└─────────────────────────────────────────────────────────────┘")
+    }
+}
+
+// MARK: - Scorer
+
+struct BenchmarkScorer {
+    // Reference values (baseline = M1 base chip = 1000 points per category)
+    private let referenceValues: [String: Double] = [
+        // CPU Single (ops/sec)
+        "integer": 500_000_000,
+        "float": 200_000_000,
+        "simd": 50_000_000_000,      // 50 GFLOPS
+        "crypto": 2_000,              // 2 GB/s
+        "compression": 500,           // 500 MB/s
+
+        // Memory (GB/s or ns)
+        "mem_read": 60,               // 60 GB/s
+        "mem_write": 50,              // 50 GB/s
+        "mem_copy": 40,               // 40 GB/s
+        "mem_latency": 100,           // 100 ns (lower is better)
+
+        // Disk (MB/s or IOPS)
+        "disk_seq_read": 3000,        // 3 GB/s
+        "disk_seq_write": 2500,       // 2.5 GB/s
+        "disk_rand_read": 300000,     // 300K IOPS
+        "disk_rand_write": 250000,    // 250K IOPS
+    ]
+
+    func calculateScores(from results: BenchmarkResults) -> BenchmarkScores {
+        let cpuSingle = calculateCPUSingleScore(results)
+        let cpuMulti = calculateCPUMultiScore(results)
+        let memory = calculateMemoryScore(results)
+        let disk = calculateDiskScore(results)
+
+        // Weighted total (CPU matters most)
+        let total = cpuSingle * 0.3 + cpuMulti * 0.3 + memory * 0.2 + disk * 0.2
+
+        return BenchmarkScores(
+            cpuSingleCore: cpuSingle,
+            cpuMultiCore: cpuMulti,
+            memory: memory,
+            disk: disk,
+            total: total
+        )
+    }
+
+    private func calculateCPUSingleScore(_ results: BenchmarkResults) -> Double {
+        guard let result = results.result(for: .cpuSingleCore) else { return 0 }
+
+        var score = 0.0
+        var count = 0
+
+        for test in result.tests {
+            if let reference = referenceValues[test.name.lowercased()] {
+                score += (test.value / reference) * 1000
+                count += 1
+            }
+        }
+
+        return count > 0 ? score / Double(count) : 0
+    }
+
+    private func calculateCPUMultiScore(_ results: BenchmarkResults) -> Double {
+        guard let result = results.result(for: .cpuMultiCore) else { return 0 }
+
+        var score = 0.0
+        var count = 0
+
+        for test in result.tests {
+            let baseName = test.name.lowercased().replacingOccurrences(of: "_multi", with: "")
+            if let reference = referenceValues[baseName] {
+                // Multi-core reference is 8x single-core (for M1 8-core)
+                score += (test.value / (reference * 8)) * 1000
+                count += 1
+            }
+        }
+
+        return count > 0 ? score / Double(count) : 0
+    }
+
+    private func calculateMemoryScore(_ results: BenchmarkResults) -> Double {
+        guard let result = results.result(for: .memory) else { return 0 }
+
+        var score = 0.0
+        var count = 0
+
+        for test in result.tests {
+            let key = "mem_\(test.name.lowercased())"
+            if let reference = referenceValues[key] {
+                if test.higherIsBetter {
+                    score += (test.value / reference) * 1000
+                } else {
+                    // Lower is better (latency)
+                    score += (reference / test.value) * 1000
+                }
+                count += 1
+            }
+        }
+
+        return count > 0 ? score / Double(count) : 0
+    }
+
+    private func calculateDiskScore(_ results: BenchmarkResults) -> Double {
+        guard let result = results.result(for: .disk) else { return 0 }
+
+        var score = 0.0
+        var count = 0
+
+        for test in result.tests {
+            let key = "disk_\(test.name.lowercased().replacingOccurrences(of: " ", with: "_"))"
+            if let reference = referenceValues[key] {
+                score += (test.value / reference) * 1000
+                count += 1
+            }
+        }
+
+        return count > 0 ? score / Double(count) : 0
+    }
+}
+
+// MARK: - Results Exporter
+
+struct ResultsExporter {
+    static func exportJSON(results: BenchmarkResults, scores: BenchmarkScores, systemInfo: SystemInfo, to path: String) throws {
+        struct ExportData: Codable {
+            let systemInfo: SystemInfo
+            let results: BenchmarkResults
+            let scores: BenchmarkScores
+        }
+
+        let data = ExportData(systemInfo: systemInfo, results: results, scores: scores)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        let jsonData = try encoder.encode(data)
+        try jsonData.write(to: URL(fileURLWithPath: path))
+    }
+}

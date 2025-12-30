@@ -1,0 +1,207 @@
+import Foundation
+import Accelerate
+import CryptoKit
+import Compression
+
+struct CPUSingleCoreBenchmark: Benchmark {
+    let iterations: Int
+    let quickMode: Bool
+
+    init(iterations: Int, quickMode: Bool = false) {
+        self.iterations = iterations
+        self.quickMode = quickMode
+    }
+
+    // Scaled parameters based on mode
+    private var integerOperations: Int { quickMode ? 10_000_000 : 100_000_000 }
+    private var floatOperations: Int { quickMode ? 5_000_000 : 50_000_000 }
+    private var simdIterations: Int { quickMode ? 20 : 100 }
+    private var cryptoDataSize: Int { quickMode ? 8 * 1024 * 1024 : 64 * 1024 * 1024 }
+    private var compressionDataSize: Int { quickMode ? 4 * 1024 * 1024 : 32 * 1024 * 1024 }
+
+    func run() async throws -> [TestResult] {
+        var results: [TestResult] = []
+
+        // Integer operations
+        let intResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+            runIntegerTest()
+        }
+        results.append(TestResult(name: "Integer", value: intResult, unit: "Mops/s"))
+
+        // Floating point operations
+        let floatResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+            runFloatTest()
+        }
+        results.append(TestResult(name: "Float", value: floatResult, unit: "Mops/s"))
+
+        // SIMD / Accelerate operations
+        let simdResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+            runSIMDTest()
+        }
+        results.append(TestResult(name: "SIMD", value: simdResult, unit: "GFLOPS"))
+
+        // Cryptography (AES + SHA)
+        let cryptoResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+            runCryptoTest()
+        }
+        results.append(TestResult(name: "Crypto", value: cryptoResult, unit: "MB/s"))
+
+        // Compression
+        let compressionResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+            runCompressionTest()
+        }
+        results.append(TestResult(name: "Compression", value: compressionResult, unit: "MB/s"))
+
+        return results
+    }
+
+    // MARK: - Integer Test
+    private func runIntegerTest() -> Double {
+        var accumulator: Int64 = 0
+
+        let start = CFAbsoluteTimeGetCurrent()
+
+        for i in 0..<integerOperations {
+            let value = Int64(i)
+            accumulator = accumulator &+ value
+            accumulator = accumulator &* 3
+            accumulator = accumulator ^ (accumulator >> 7)
+            accumulator = accumulator &+ (value &* value)
+        }
+
+        let duration = CFAbsoluteTimeGetCurrent() - start
+
+        // Prevent optimization
+        if accumulator == Int64.min { print("") }
+
+        // Operations per second (4 ops per iteration)
+        return Double(integerOperations * 4) / duration / 1_000_000
+    }
+
+    // MARK: - Float Test
+    private func runFloatTest() -> Double {
+        var accumulator: Double = 1.0
+
+        let start = CFAbsoluteTimeGetCurrent()
+
+        for i in 0..<floatOperations {
+            let value = Double(i) * 0.00001
+            accumulator = accumulator + value
+            accumulator = accumulator * 1.000001
+            accumulator = sqrt(accumulator * accumulator + 1.0)
+            accumulator = sin(accumulator) + cos(accumulator)
+        }
+
+        let duration = CFAbsoluteTimeGetCurrent() - start
+
+        // Prevent optimization
+        if accumulator.isNaN { print("") }
+
+        // Operations per second (4 ops per iteration)
+        return Double(floatOperations * 4) / duration / 1_000_000
+    }
+
+    // MARK: - SIMD Test (Accelerate Framework)
+    private func runSIMDTest() -> Double {
+        let vectorSize = 1_000_000
+
+        var vectorA = [Float](repeating: 0, count: vectorSize)
+        var vectorB = [Float](repeating: 0, count: vectorSize)
+        var vectorC = [Float](repeating: 0, count: vectorSize)
+
+        // Initialize with data
+        for i in 0..<vectorSize {
+            vectorA[i] = Float(i) * 0.001
+            vectorB[i] = Float(vectorSize - i) * 0.001
+        }
+
+        let start = CFAbsoluteTimeGetCurrent()
+
+        for _ in 0..<simdIterations {
+            // Vector multiply-add: C = A * B + C
+            vDSP_vma(vectorA, 1, vectorB, 1, vectorC, 1, &vectorC, 1, vDSP_Length(vectorSize))
+
+            // Vector add
+            vDSP_vadd(vectorA, 1, vectorB, 1, &vectorC, 1, vDSP_Length(vectorSize))
+
+            // Dot product
+            var dotResult: Float = 0
+            vDSP_dotpr(vectorA, 1, vectorB, 1, &dotResult, vDSP_Length(vectorSize))
+        }
+
+        let duration = CFAbsoluteTimeGetCurrent() - start
+
+        // GFLOPS calculation: 3 operations * vectorSize * iterations * 2 (for multiply-add)
+        let totalOps = Double(simdIterations) * Double(vectorSize) * 6.0
+        return totalOps / duration / 1_000_000_000
+    }
+
+    // MARK: - Crypto Test
+    private func runCryptoTest() -> Double {
+        let data = Data((0..<cryptoDataSize).map { UInt8($0 & 0xFF) })
+        let key = SymmetricKey(size: .bits256)
+        let nonce = try! AES.GCM.Nonce(data: Data(repeating: 0, count: 12))
+
+        let start = CFAbsoluteTimeGetCurrent()
+
+        // AES-GCM encryption
+        let encrypted = try! AES.GCM.seal(data, using: key, nonce: nonce)
+
+        // SHA-256 hash
+        _ = SHA256.hash(data: encrypted.ciphertext)
+
+        let duration = CFAbsoluteTimeGetCurrent() - start
+
+        // MB/s throughput
+        return Double(cryptoDataSize) / duration / (1024 * 1024)
+    }
+
+    // MARK: - Compression Test
+    private func runCompressionTest() -> Double {
+        var data = Data(count: compressionDataSize)
+
+        // Generate compressible data (mix of patterns and random)
+        for i in 0..<compressionDataSize {
+            if i % 100 < 80 {
+                data[i] = UInt8(i % 256)  // Repeating pattern
+            } else {
+                data[i] = UInt8.random(in: 0...255)  // Random
+            }
+        }
+
+        let start = CFAbsoluteTimeGetCurrent()
+
+        // Compress using LZFSE (Apple's fast compression)
+        let destinationBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: compressionDataSize)
+        defer { destinationBuffer.deallocate() }
+
+        let compressedSize = data.withUnsafeBytes { sourcePtr in
+            compression_encode_buffer(
+                destinationBuffer,
+                compressionDataSize,
+                sourcePtr.bindMemory(to: UInt8.self).baseAddress!,
+                compressionDataSize,
+                nil,
+                COMPRESSION_LZFSE
+            )
+        }
+
+        // Decompress
+        let decompressedBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: compressionDataSize)
+        defer { decompressedBuffer.deallocate() }
+
+        _ = compression_decode_buffer(
+            decompressedBuffer,
+            compressionDataSize,
+            destinationBuffer,
+            compressedSize,
+            nil,
+            COMPRESSION_LZFSE
+        )
+
+        let duration = CFAbsoluteTimeGetCurrent() - start
+
+        // MB/s throughput (compress + decompress)
+        return Double(compressionDataSize * 2) / duration / (1024 * 1024)
+    }
+}
