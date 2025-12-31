@@ -47,8 +47,10 @@ Temporary Items
 
 # Build artifacts
 /osx-bench
+/dist/
 *.o
 *.a
+Resources/AppIcon.iconset/
 
 # Test reports
 ~/Desktop/OSX-Bench-Reports/

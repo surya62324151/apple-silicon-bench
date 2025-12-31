@@ -20,7 +20,9 @@ jobs:
 
     - name: Get version
       id: version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      run: |
+        echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        echo "VERSION_NUM=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
     - name: Build Release Binary
       run: |
@@ -35,19 +37,51 @@ jobs:
         # Strip debug symbols for smaller binary
         strip dist/osx-bench
 
-        # Ad-hoc code sign to avoid "unidentified developer" on first run
+        # Ad-hoc code sign
         codesign --force --sign - dist/osx-bench
 
         # Get binary info
         file dist/osx-bench
         ls -lh dist/osx-bench
-        codesign -dv dist/osx-bench
 
-    - name: Create tarball
+    - name: Build App Bundle
+      run: |
+        APP_NAME="Apple Silicon Bench"
+        VERSION_NUM="${{ steps.version.outputs.VERSION_NUM }}"
+
+        # Create app bundle structure
+        mkdir -p "dist/$APP_NAME.app/Contents/MacOS"
+        mkdir -p "dist/$APP_NAME.app/Contents/Resources"
+
+        # Copy binary
+        cp dist/osx-bench "dist/$APP_NAME.app/Contents/MacOS/"
+
+        # Copy resources
+        cp Resources/Info.plist "dist/$APP_NAME.app/Contents/"
+        cp Resources/AppIcon.icns "dist/$APP_NAME.app/Contents/Resources/"
+
+        # Update version in Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION_NUM" "dist/$APP_NAME.app/Contents/Info.plist"
+
+        # Ad-hoc code sign the app bundle
+        codesign --force --sign - "dist/$APP_NAME.app"
+
+        echo "App bundle created:"
+        ls -la "dist/$APP_NAME.app/Contents/"
+
+    - name: Create Archives
       run: |
         cd dist
+
+        # CLI binary tarball
         tar -czvf osx-bench-macos-arm64.tar.gz osx-bench
         shasum -a 256 osx-bench-macos-arm64.tar.gz > osx-bench-macos-arm64.tar.gz.sha256
+
+        # App bundle zip
+        zip -r "Apple-Silicon-Bench.app.zip" "Apple Silicon Bench.app"
+        shasum -a 256 "Apple-Silicon-Bench.app.zip" > "Apple-Silicon-Bench.app.zip.sha256"
+
+        ls -la
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -56,29 +90,29 @@ jobs:
         body: |
           ## Apple Silicon Bench ${{ steps.version.outputs.VERSION }}
 
-          ### Download
+          ### Downloads
 
-          Download the binary for macOS (Apple Silicon):
-          - `osx-bench-macos-arm64.tar.gz` - Universal binary for M1/M2/M3/M4
+          | File | Description |
+          |------|-------------|
+          | `Apple-Silicon-Bench.app.zip` | macOS App with icon (recommended) |
+          | `osx-bench-macos-arm64.tar.gz` | CLI binary only |
 
           ### Installation
 
-          **Option 1: Download from browser**
-          Click on `osx-bench-macos-arm64.tar.gz` below, then extract and run.
+          **Option 1: App Bundle (recommended)**
+          1. Download `Apple-Silicon-Bench.app.zip`
+          2. Extract and move to Applications (optional)
+          3. Right-click → Open (first time only, to bypass Gatekeeper)
+          4. Run from Terminal: `"/path/to/Apple Silicon Bench.app/Contents/MacOS/osx-bench" run`
 
-          **Option 2: Command line**
+          **Option 2: CLI Binary**
           ```bash
-          # Download using gh CLI (recommended)
-          gh release download ${{ steps.version.outputs.VERSION }} -R carlosacchi/apple-silicon-bench -p "osx-bench-macos-arm64.tar.gz"
-
-          # Or download with curl
-          curl -L -o osx-bench-macos-arm64.tar.gz \
-            "https://github.com/carlosacchi/apple-silicon-bench/releases/download/${{ steps.version.outputs.VERSION }}/osx-bench-macos-arm64.tar.gz"
+          # Download
+          curl -LO "https://github.com/carlosacchi/apple-silicon-bench/releases/download/${{ steps.version.outputs.VERSION }}/osx-bench-macos-arm64.tar.gz"
 
           # Extract and run
           tar -xzf osx-bench-macos-arm64.tar.gz
-          xattr -cr osx-bench  # Remove quarantine attribute
-          chmod +x osx-bench
+          xattr -cr osx-bench  # Remove quarantine
           ./osx-bench run
           ```
 
@@ -88,7 +122,7 @@ jobs:
           # Full benchmark
           ./osx-bench run
 
-          # Quick benchmark
+          # Quick benchmark (~10 seconds)
           ./osx-bench run --quick
 
           # View system info
@@ -99,5 +133,7 @@ jobs:
         files: |
           dist/osx-bench-macos-arm64.tar.gz
           dist/osx-bench-macos-arm64.tar.gz.sha256
+          dist/Apple-Silicon-Bench.app.zip
+          dist/Apple-Silicon-Bench.app.zip.sha256
         draft: false
         prerelease: false
