@@ -217,28 +217,36 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Roadmap
 
-### v1.2 - GPU & Graphics
-- [ ] Metal GPU compute benchmark (shader performance)
-- [ ] Ray tracing / path tracer performance test
+### v1.2 - Extended System Info ✅
+- [x] Disk info (model, capacity, SSD/HDD type)
+- [ ] `osx-bench info --brief` vs `--extended` modes
+- [ ] GPU info (chip, VRAM, Metal version)
+- [ ] Battery info for MacBooks (cycle count, health)
+
+### v1.3 - GPU Benchmark (Metal)
+- [ ] Metal compute shaders benchmark
+- [ ] Image processing tests (blur, edge detection, face detection)
+- [ ] Particle physics simulation
+- [ ] Stereo matching / depth estimation
 - [ ] Unified Memory bandwidth (CPU-GPU transfer)
 
-### v1.3 - AI & Machine Learning
+### v1.4 - AI & Machine Learning
 - [ ] Neural Engine benchmark (CoreML inference)
 - [ ] MLX framework performance test
 - [ ] Image classification / object detection speed
 
-### v1.4 - Power & Efficiency
+### v1.5 - Power & Efficiency
 - [ ] Real-time power consumption monitoring (Watts)
 - [ ] Power efficiency score (GFLOPS per Watt)
 - [ ] Battery drain test for MacBooks
 - [ ] Enhanced thermal throttling analysis
 
-### v1.5 - Media Engine
+### v1.6 - Media Engine
 - [ ] ProRes encode/decode benchmark (VideoToolbox)
 - [ ] HEVC hardware encoding speed
 - [ ] Video transcoding performance
 
-### v1.6 - Advanced Memory
+### v1.7 - Advanced Memory
 - [ ] Cache latency tests (L1, L2, L3 separately)
 - [ ] Memory bandwidth per core type (P-core vs E-core)
 - [ ] NUMA-aware memory access patterns
