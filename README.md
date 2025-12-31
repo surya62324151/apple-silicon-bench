@@ -214,12 +214,37 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Roadmap
 
-- [ ] GPU benchmark (Metal compute shaders)
-- [ ] Neural Engine benchmark (CoreML inference)
+### v1.2 - GPU & Graphics
+- [ ] Metal GPU compute benchmark (shader performance)
+- [ ] Ray tracing / path tracer performance test
 - [ ] Unified Memory bandwidth (CPU-GPU transfer)
-- [ ] Power efficiency metrics
+
+### v1.3 - AI & Machine Learning
+- [ ] Neural Engine benchmark (CoreML inference)
+- [ ] MLX framework performance test
+- [ ] Image classification / object detection speed
+
+### v1.4 - Power & Efficiency
+- [ ] Real-time power consumption monitoring (Watts)
+- [ ] Power efficiency score (GFLOPS per Watt)
+- [ ] Battery drain test for MacBooks
+- [ ] Enhanced thermal throttling analysis
+
+### v1.5 - Media Engine
+- [ ] ProRes encode/decode benchmark (VideoToolbox)
+- [ ] HEVC hardware encoding speed
+- [ ] Video transcoding performance
+
+### v1.6 - Advanced Memory
+- [ ] Cache latency tests (L1, L2, L3 separately)
+- [ ] Memory bandwidth per core type (P-core vs E-core)
+- [ ] NUMA-aware memory access patterns
+
+### Future
 - [ ] Online leaderboard for community comparisons
-- [ ] Historical tracking of your machine's performance
+- [ ] Historical tracking of machine performance over time
+- [ ] USB/Thunderbolt bandwidth testing
+- [ ] Geekbench-compatible export format
 
 ## Keywords
 
