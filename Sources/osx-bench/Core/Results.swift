@@ -246,14 +246,15 @@ struct BenchmarkScorer {
 // MARK: - Results Exporter
 
 struct ResultsExporter {
+    /// Export results to JSON without machine ID for privacy
     static func exportJSON(results: BenchmarkResults, scores: BenchmarkScores, systemInfo: SystemInfo, to path: String) throws {
         struct ExportData: Codable {
-            let systemInfo: SystemInfo
+            let systemInfo: SystemInfoExport  // Privacy-safe version without machine ID
             let results: BenchmarkResults
             let scores: BenchmarkScores
         }
 
-        let data = ExportData(systemInfo: systemInfo, results: results, scores: scores)
+        let data = ExportData(systemInfo: systemInfo.forExport(), results: results, scores: scores)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601

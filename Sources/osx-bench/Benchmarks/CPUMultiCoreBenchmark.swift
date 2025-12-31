@@ -171,16 +171,22 @@ struct CPUMultiCoreBenchmark: Benchmark {
     private func runCryptoTest() -> Double {
         let data = Data((0..<cryptoDataSize).map { UInt8($0 & 0xFF) })
         let key = SymmetricKey(size: .bits256)
-        let nonce = try! AES.GCM.Nonce(data: Data(repeating: 0, count: 12))
 
-        let start = CFAbsoluteTimeGetCurrent()
+        do {
+            let nonce = try AES.GCM.Nonce(data: Data(repeating: 0, count: 12))
 
-        let encrypted = try! AES.GCM.seal(data, using: key, nonce: nonce)
-        _ = SHA256.hash(data: encrypted.ciphertext)
+            let start = CFAbsoluteTimeGetCurrent()
 
-        let duration = CFAbsoluteTimeGetCurrent() - start
+            let encrypted = try AES.GCM.seal(data, using: key, nonce: nonce)
+            _ = SHA256.hash(data: encrypted.ciphertext)
 
-        return Double(cryptoDataSize) / duration / (1024 * 1024)
+            let duration = CFAbsoluteTimeGetCurrent() - start
+
+            return Double(cryptoDataSize) / duration / (1024 * 1024)
+        } catch {
+            // Return 0 to indicate benchmark failure
+            return 0
+        }
     }
 
     // MARK: - Compression Test

@@ -137,4 +137,30 @@ struct SystemInfo: Codable {
         sysctlbyname("hw.model", &model, &size, nil, 0)
         return String(cString: model)
     }
+
+    // MARK: - Privacy-Safe Export Version
+
+    /// Returns a copy without machine ID for privacy-safe JSON exports
+    func forExport() -> SystemInfoExport {
+        SystemInfoExport(
+            chip: chip,
+            coresPerformance: coresPerformance,
+            coresEfficiency: coresEfficiency,
+            totalCores: totalCores,
+            ramGB: ramGB,
+            osVersion: osVersion,
+            modelIdentifier: modelIdentifier
+        )
+    }
+}
+
+/// Privacy-safe version of SystemInfo without machine ID for exports
+struct SystemInfoExport: Codable {
+    let chip: String
+    let coresPerformance: Int
+    let coresEfficiency: Int
+    let totalCores: Int
+    let ramGB: Int
+    let osVersion: String
+    let modelIdentifier: String
 }

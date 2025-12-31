@@ -13,12 +13,12 @@ struct DiskBenchmark: Benchmark {
     init(duration: Int, quickMode: Bool = false) {
         self.duration = duration
         self.quickMode = quickMode
-        self.testDir = FileManager.default.temporaryDirectory.appendingPathComponent("osx-bench-disk")
+        // Use unique UUID directory per run to prevent symlink attacks
+        self.testDir = FileManager.default.temporaryDirectory.appendingPathComponent("osx-bench-disk-\(UUID().uuidString)")
     }
 
     func run() async throws -> [TestResult] {
-        // Setup test directory
-        try? FileManager.default.removeItem(at: testDir)
+        // Setup test directory - create fresh (never remove pre-existing paths)
         try FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
         defer {
             try? FileManager.default.removeItem(at: testDir)
