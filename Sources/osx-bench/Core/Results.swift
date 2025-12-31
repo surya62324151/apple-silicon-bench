@@ -107,18 +107,37 @@ struct BenchmarkScores: Codable {
     let memory: Double
     let disk: Double
     let total: Double
+    // Track which benchmarks were run (vs skipped via --only)
+    let ranCpuSingle: Bool
+    let ranCpuMulti: Bool
+    let ranMemory: Bool
+    let ranDisk: Bool
+
+    init(cpuSingleCore: Double, cpuMultiCore: Double, memory: Double, disk: Double, total: Double,
+         ranCpuSingle: Bool = false, ranCpuMulti: Bool = false, ranMemory: Bool = false, ranDisk: Bool = false) {
+        self.cpuSingleCore = cpuSingleCore
+        self.cpuMultiCore = cpuMultiCore
+        self.memory = memory
+        self.disk = disk
+        self.total = total
+        self.ranCpuSingle = ranCpuSingle
+        self.ranCpuMulti = ranCpuMulti
+        self.ranMemory = ranMemory
+        self.ranDisk = ranDisk
+    }
 
     func printSummary(quickMode: Bool = false, partialRun: Bool = false) {
         let line = String(repeating: "─", count: 44)
         print(line)
         print("  BENCHMARK SCORES")
         print(line)
-        if cpuSingleCore > 0 { print(dotPad("CPU Single-Core", Int(cpuSingleCore))) }
-        if cpuMultiCore > 0 { print(dotPad("CPU Multi-Core", Int(cpuMultiCore))) }
-        if memory > 0 { print(dotPad("Memory", Int(memory))) }
-        if disk > 0 { print(dotPad("Disk", Int(disk))) }
+        // Show score if benchmark ran (even if 0 = failed), hide if not run
+        if ranCpuSingle { print(dotPad("CPU Single-Core", formatScore(cpuSingleCore))) }
+        if ranCpuMulti { print(dotPad("CPU Multi-Core", formatScore(cpuMultiCore))) }
+        if ranMemory { print(dotPad("Memory", formatScore(memory))) }
+        if ranDisk { print(dotPad("Disk", formatScore(disk))) }
         print(line)
-        print(dotPad("TOTAL SCORE", Int(total)))
+        print(dotPad("TOTAL SCORE", formatScore(total)))
         print(line)
 
         // Print notes about scoring accuracy
@@ -130,10 +149,13 @@ struct BenchmarkScores: Codable {
         }
     }
 
-    private func dotPad(_ label: String, _ value: Int) -> String {
-        let valueStr = String(value)
+    private func formatScore(_ score: Double) -> String {
+        score > 0 ? String(Int(score)) : "Failed"
+    }
+
+    private func dotPad(_ label: String, _ value: String) -> String {
         let prefix = "  \(label) "
-        let suffix = " \(valueStr)"
+        let suffix = " \(value)"
         let dotsCount = max(2, 44 - prefix.count - suffix.count)
         return prefix + String(repeating: ".", count: dotsCount) + suffix
     }
@@ -165,35 +187,42 @@ struct BenchmarkScorer {
         "disk_rand_write": 250000,    // 250K IOPS
     ]
 
-    func calculateScores(from results: BenchmarkResults) -> BenchmarkScores {
+    func calculateScores(from results: BenchmarkResults, coreCount: Int = 8) -> BenchmarkScores {
+        // Check which benchmarks were actually run (not skipped via --only)
+        let ranCpuSingle = results.result(for: .cpuSingleCore) != nil
+        let ranCpuMulti = results.result(for: .cpuMultiCore) != nil
+        let ranMemory = results.result(for: .memory) != nil
+        let ranDisk = results.result(for: .disk) != nil
+
         let cpuSingle = calculateCPUSingleScore(results)
-        let cpuMulti = calculateCPUMultiScore(results)
+        let cpuMulti = calculateCPUMultiScore(results, coreCount: coreCount)
         let memory = calculateMemoryScore(results)
         let disk = calculateDiskScore(results)
 
-        // Weighted total - only include categories that were actually run
+        // Weighted total - include categories that were run (even if score is 0 = failed)
         // This prevents partial runs (--only) from being unfairly penalized
+        // but still penalizes failures appropriately
         var totalScore = 0.0
         var totalWeight = 0.0
 
-        if cpuSingle > 0 {
+        if ranCpuSingle {
             totalScore += cpuSingle * 0.3
             totalWeight += 0.3
         }
-        if cpuMulti > 0 {
+        if ranCpuMulti {
             totalScore += cpuMulti * 0.3
             totalWeight += 0.3
         }
-        if memory > 0 {
+        if ranMemory {
             totalScore += memory * 0.2
             totalWeight += 0.2
         }
-        if disk > 0 {
+        if ranDisk {
             totalScore += disk * 0.2
             totalWeight += 0.2
         }
 
-        // Normalize to account for missing categories
+        // Normalize to account for skipped categories (not failures)
         let total = totalWeight > 0 ? totalScore / totalWeight : 0
 
         return BenchmarkScores(
@@ -201,7 +230,11 @@ struct BenchmarkScorer {
             cpuMultiCore: cpuMulti,
             memory: memory,
             disk: disk,
-            total: total
+            total: total,
+            ranCpuSingle: ranCpuSingle,
+            ranCpuMulti: ranCpuMulti,
+            ranMemory: ranMemory,
+            ranDisk: ranDisk
         )
     }
 
@@ -223,7 +256,7 @@ struct BenchmarkScorer {
         return count > 0 ? score / Double(count) : 0
     }
 
-    private func calculateCPUMultiScore(_ results: BenchmarkResults) -> Double {
+    private func calculateCPUMultiScore(_ results: BenchmarkResults, coreCount: Int) -> Double {
         guard let result = results.result(for: .cpuMultiCore) else { return 0 }
 
         var score = 0.0
@@ -234,8 +267,10 @@ struct BenchmarkScorer {
             guard test.value > 0 else { continue }
             let baseName = test.name.lowercased().replacingOccurrences(of: "_multi", with: "")
             if let reference = referenceValues[baseName] {
-                // Multi-core reference is 8x single-core (for M1 8-core)
-                score += (test.value / (reference * 8)) * 1000
+                // Multi-core reference scales with actual core count (baseline M1 = 8 cores)
+                // This normalizes scores so different core counts are comparable
+                let coreScaleFactor = Double(coreCount) / 8.0
+                score += (test.value / (reference * 8 * coreScaleFactor)) * 1000
                 count += 1
             }
         }

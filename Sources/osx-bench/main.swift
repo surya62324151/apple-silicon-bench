@@ -62,9 +62,9 @@ struct Run: AsyncParsableCommand {
 
         let results = try await runner.runAll()
 
-        // Calculate scores
+        // Calculate scores (pass core count for proper multi-core normalization)
         let scorer = BenchmarkScorer()
-        let scores = scorer.calculateScores(from: results)
+        let scores = scorer.calculateScores(from: results, coreCount: systemInfo.totalCores)
 
         // Generate HTML report
         let reportGenerator = HTMLReportGenerator(systemInfo: systemInfo, results: results, scores: scores)

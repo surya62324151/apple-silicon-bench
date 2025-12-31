@@ -5,6 +5,10 @@ struct HTMLReportGenerator {
     let results: BenchmarkResults
     let scores: BenchmarkScores
 
+    private func formatScoreHTML(_ score: Double) -> String {
+        score > 0 ? String(Int(score)) : "<span style=\"color: #e74c3c;\">Failed</span>"
+    }
+
     func generate() throws -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
@@ -342,24 +346,32 @@ struct HTMLReportGenerator {
                 <section class="scores-grid">
                     <div class="score-card total">
                         <div class="score-label">Total Score</div>
-                        <div class="score-value">\(Int(scores.total))</div>
+                        <div class="score-value">\(formatScoreHTML(scores.total))</div>
                     </div>
+                    \(scores.ranCpuSingle ? """
                     <div class="score-card">
                         <div class="score-label">CPU Single-Core</div>
-                        <div class="score-value">\(Int(scores.cpuSingleCore))</div>
+                        <div class="score-value">\(formatScoreHTML(scores.cpuSingleCore))</div>
                     </div>
+                    """ : "")
+                    \(scores.ranCpuMulti ? """
                     <div class="score-card">
                         <div class="score-label">CPU Multi-Core</div>
-                        <div class="score-value">\(Int(scores.cpuMultiCore))</div>
+                        <div class="score-value">\(formatScoreHTML(scores.cpuMultiCore))</div>
                     </div>
+                    """ : "")
+                    \(scores.ranMemory ? """
                     <div class="score-card">
                         <div class="score-label">Memory</div>
-                        <div class="score-value">\(Int(scores.memory))</div>
+                        <div class="score-value">\(formatScoreHTML(scores.memory))</div>
                     </div>
+                    """ : "")
+                    \(scores.ranDisk ? """
                     <div class="score-card">
                         <div class="score-label">Disk</div>
-                        <div class="score-value">\(Int(scores.disk))</div>
+                        <div class="score-value">\(formatScoreHTML(scores.disk))</div>
                     </div>
+                    """ : "")
                 </section>
 
                 \(generateThermalSection())
@@ -384,22 +396,12 @@ struct HTMLReportGenerator {
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: ['CPU Single', 'CPU Multi', 'Memory', 'Disk'],
+                        labels: [\(generateChartLabels())],
                         datasets: [{
                             label: 'Score',
-                            data: [\(Int(scores.cpuSingleCore)), \(Int(scores.cpuMultiCore)), \(Int(scores.memory)), \(Int(scores.disk))],
-                            backgroundColor: [
-                                'rgba(233, 69, 96, 0.8)',
-                                'rgba(0, 217, 255, 0.8)',
-                                'rgba(0, 255, 136, 0.8)',
-                                'rgba(254, 202, 87, 0.8)'
-                            ],
-                            borderColor: [
-                                'rgba(233, 69, 96, 1)',
-                                'rgba(0, 217, 255, 1)',
-                                'rgba(0, 255, 136, 1)',
-                                'rgba(254, 202, 87, 1)'
-                            ],
+                            data: [\(generateChartData())],
+                            backgroundColor: [\(generateChartColors(alpha: 0.8))],
+                            borderColor: [\(generateChartColors(alpha: 1.0))],
                             borderWidth: 2,
                             borderRadius: 8
                         }]
@@ -511,5 +513,45 @@ struct HTMLReportGenerator {
         } else {
             return "<span class=\"thermal-badge \(cssClass)\">\(start.emoji) → \(end.emoji)</span>"
         }
+    }
+
+    // MARK: - Chart Helpers
+
+    private func generateChartLabels() -> String {
+        var labels: [String] = []
+        if scores.ranCpuSingle { labels.append("'CPU Single'") }
+        if scores.ranCpuMulti { labels.append("'CPU Multi'") }
+        if scores.ranMemory { labels.append("'Memory'") }
+        if scores.ranDisk { labels.append("'Disk'") }
+        return labels.joined(separator: ", ")
+    }
+
+    private func generateChartData() -> String {
+        var data: [String] = []
+        if scores.ranCpuSingle { data.append(String(Int(scores.cpuSingleCore))) }
+        if scores.ranCpuMulti { data.append(String(Int(scores.cpuMultiCore))) }
+        if scores.ranMemory { data.append(String(Int(scores.memory))) }
+        if scores.ranDisk { data.append(String(Int(scores.disk))) }
+        return data.joined(separator: ", ")
+    }
+
+    private func generateChartColors(alpha: Double) -> String {
+        let colors = [
+            (r: 233, g: 69, b: 96),    // CPU Single - red
+            (r: 0, g: 217, b: 255),    // CPU Multi - cyan
+            (r: 0, g: 255, b: 136),    // Memory - green
+            (r: 254, g: 202, b: 87)    // Disk - yellow
+        ]
+        var result: [String] = []
+        var colorIndex = 0
+        if scores.ranCpuSingle { result.append(formatColor(colors[0], alpha: alpha)); colorIndex += 1 }
+        if scores.ranCpuMulti { result.append(formatColor(colors[1], alpha: alpha)); colorIndex += 1 }
+        if scores.ranMemory { result.append(formatColor(colors[2], alpha: alpha)); colorIndex += 1 }
+        if scores.ranDisk { result.append(formatColor(colors[3], alpha: alpha)); colorIndex += 1 }
+        return result.joined(separator: ", ")
+    }
+
+    private func formatColor(_ color: (r: Int, g: Int, b: Int), alpha: Double) -> String {
+        "'rgba(\(color.r), \(color.g), \(color.b), \(alpha))'"
     }
 }
