@@ -29,6 +29,9 @@ Download the latest release from the [Releases page](https://github.com/carlosac
 # Download and extract
 curl -LO https://github.com/carlosacchi/apple-silicon-bench/releases/latest/download/osx-bench-macos-arm64.tar.gz
 tar -xzf osx-bench-macos-arm64.tar.gz
+
+# Remove macOS quarantine and make executable
+xattr -cr osx-bench
 chmod +x osx-bench
 
 # Run benchmark
