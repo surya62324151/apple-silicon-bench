@@ -4,12 +4,13 @@ import CryptoKit
 import Compression
 
 struct CPUMultiCoreBenchmark: Benchmark {
-    let iterations: Int
+    let iterations: Int = 1  // Kept for protocol conformance
+    let duration: Int  // Duration in seconds
     let coreCount: Int
     let quickMode: Bool
 
-    init(iterations: Int, coreCount: Int, quickMode: Bool = false) {
-        self.iterations = iterations
+    init(duration: Int, coreCount: Int, quickMode: Bool = false) {
+        self.duration = duration
         self.coreCount = coreCount
         self.quickMode = quickMode
     }
@@ -23,33 +24,34 @@ struct CPUMultiCoreBenchmark: Benchmark {
 
     func run() async throws -> [TestResult] {
         var results: [TestResult] = []
+        let testDuration = Double(duration) / 5.0  // Divide duration among 5 tests
 
         // Integer operations (parallel)
-        let intResult = await measureParallel {
+        let intResult = await measureParallelForDuration(seconds: testDuration) {
             runIntegerTest()
         }
         results.append(TestResult(name: "Integer_Multi", value: intResult, unit: "Mops/s"))
 
         // Floating point operations (parallel)
-        let floatResult = await measureParallel {
+        let floatResult = await measureParallelForDuration(seconds: testDuration) {
             runFloatTest()
         }
         results.append(TestResult(name: "Float_Multi", value: floatResult, unit: "Mops/s"))
 
         // SIMD / Accelerate operations (parallel)
-        let simdResult = await measureParallel {
+        let simdResult = await measureParallelForDuration(seconds: testDuration) {
             runSIMDTest()
         }
         results.append(TestResult(name: "SIMD_Multi", value: simdResult, unit: "GFLOPS"))
 
         // Cryptography parallel
-        let cryptoResult = await measureParallel {
+        let cryptoResult = await measureParallelForDuration(seconds: testDuration) {
             runCryptoTest()
         }
         results.append(TestResult(name: "Crypto_Multi", value: cryptoResult, unit: "MB/s"))
 
         // Compression parallel
-        let compressionResult = await measureParallel {
+        let compressionResult = await measureParallelForDuration(seconds: testDuration) {
             runCompressionTest()
         }
         results.append(TestResult(name: "Compression_Multi", value: compressionResult, unit: "MB/s"))
@@ -57,7 +59,7 @@ struct CPUMultiCoreBenchmark: Benchmark {
         return results
     }
 
-    private func measureParallel(operation: @escaping @Sendable () -> Double) async -> Double {
+    private func measureParallelForDuration(seconds: Double, operation: @escaping @Sendable () -> Double) async -> Double {
         // Warmup (skip in quick mode)
         if !quickMode {
             await withTaskGroup(of: Double.self) { group in
@@ -70,17 +72,20 @@ struct CPUMultiCoreBenchmark: Benchmark {
             }
         }
 
-        // Actual measurement
+        // Actual measurement - run for duration on all cores
         var totalThroughput = 0.0
+        let endTime = CFAbsoluteTimeGetCurrent() + seconds
 
         await withTaskGroup(of: Double.self) { group in
             for _ in 0..<coreCount {
                 group.addTask {
                     var sum = 0.0
-                    for _ in 0..<self.iterations {
+                    var count = 0
+                    while CFAbsoluteTimeGetCurrent() < endTime {
                         sum += operation()
+                        count += 1
                     }
-                    return sum / Double(self.iterations)
+                    return count > 0 ? sum / Double(count) : 0
                 }
             }
 

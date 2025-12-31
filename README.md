@@ -51,11 +51,17 @@ swift build -c release
 ### Full Benchmark Suite
 
 ```bash
-# Run all benchmarks (recommended for accurate results)
+# Run all benchmarks (default: 10 seconds per test category)
 osx-bench run
 
-# Quick mode - faster but less accurate
+# Quick mode - faster but less accurate (~3s per test)
 osx-bench run --quick
+
+# Custom duration - specify seconds per test category
+osx-bench run --duration 30
+
+# Stress test mode - extended duration (~60s per test)
+osx-bench run --stress
 ```
 
 ### Selective Benchmarks
@@ -81,14 +87,31 @@ osx-bench info
 osx-bench info --detailed
 ```
 
+### Test Duration Options
+
+```bash
+# Default run: 10 seconds per test category (recommended)
+osx-bench run
+
+# Quick mode: ~3 seconds per test (faster, less accurate)
+osx-bench run --quick
+
+# Custom duration: specify exact seconds (e.g., 30 seconds per test)
+osx-bench run -d 30
+osx-bench run --duration 30
+
+# Stress mode: ~60 seconds per test (thorough, detects thermal throttling)
+osx-bench run --stress
+
+# Combine with selective benchmarks
+osx-bench run --only cpu-single --duration 60
+```
+
 ### Export Results
 
 ```bash
 # Export to JSON
 osx-bench run --export results.json
-
-# Offline mode (no future cloud features)
-osx-bench run --offline
 ```
 
 ## Benchmark Categories
@@ -202,6 +225,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Apple Silicon benchmark, M1 benchmark, M2 benchmark, M3 benchmark, M4 benchmark, M5 benchmark, macOS performance test, Mac benchmark tool, Apple Silicon performance, M1 Pro benchmark, M1 Max benchmark, M2 Pro benchmark, M3 Pro benchmark, M4 Pro benchmark, M5 Pro benchmark, Mac CPU benchmark, Mac memory benchmark, Mac SSD benchmark, Apple chip comparison, ARM Mac benchmark, native macOS benchmark
 
+## Author
+
+**Carlo Sacchi**
+
+- GitHub: [@carlosacchi](https://github.com/carlosacchi)
+
 ---
 
-Made with Swift for Apple Silicon
+Made with Swift for Apple Silicon by Carlo Sacchi

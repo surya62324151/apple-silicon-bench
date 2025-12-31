@@ -1,7 +1,8 @@
 import Foundation
 
 struct DiskBenchmark: Benchmark {
-    let iterations: Int
+    let iterations: Int = 1  // Kept for protocol conformance
+    let duration: Int  // Duration in seconds
     let quickMode: Bool
 
     private let testDir: URL
@@ -9,8 +10,8 @@ struct DiskBenchmark: Benchmark {
     private let randomBlockSize = 4096  // 4 KB
     private var randomOperations: Int { quickMode ? 1000 : 5000 }
 
-    init(iterations: Int, quickMode: Bool = false) {
-        self.iterations = iterations
+    init(duration: Int, quickMode: Bool = false) {
+        self.duration = duration
         self.quickMode = quickMode
         self.testDir = FileManager.default.temporaryDirectory.appendingPathComponent("osx-bench-disk")
     }
@@ -24,32 +25,50 @@ struct DiskBenchmark: Benchmark {
         }
 
         var results: [TestResult] = []
+        let testDuration = Double(duration) / 4.0  // Divide duration among 4 tests
 
         // Sequential Write
-        let seqWriteResult = try measureAverage(iterations: iterations) {
+        let seqWriteResult = try measureForDuration(seconds: testDuration) {
             try runSequentialWriteTest()
         }
         results.append(TestResult(name: "Seq_Write", value: seqWriteResult, unit: "MB/s"))
 
         // Sequential Read
-        let seqReadResult = try measureAverage(iterations: iterations) {
+        let seqReadResult = try measureForDuration(seconds: testDuration) {
             try runSequentialReadTest()
         }
         results.append(TestResult(name: "Seq_Read", value: seqReadResult, unit: "MB/s"))
 
         // Random Write IOPS
-        let randWriteResult = try measureAverage(iterations: iterations) {
+        let randWriteResult = try measureForDuration(seconds: testDuration) {
             try runRandomWriteTest()
         }
         results.append(TestResult(name: "Rand_Write", value: randWriteResult, unit: "IOPS"))
 
         // Random Read IOPS
-        let randReadResult = try measureAverage(iterations: iterations) {
+        let randReadResult = try measureForDuration(seconds: testDuration) {
             try runRandomReadTest()
         }
         results.append(TestResult(name: "Rand_Read", value: randReadResult, unit: "IOPS"))
 
         return results
+    }
+
+    /// Run operation repeatedly for the specified duration, returning averaged result
+    private func measureForDuration(seconds: Double, operation: () throws -> Double) rethrows -> Double {
+        // Warmup run
+        _ = try operation()
+
+        var total = 0.0
+        var count = 0
+        let endTime = CFAbsoluteTimeGetCurrent() + seconds
+
+        while CFAbsoluteTimeGetCurrent() < endTime {
+            total += try operation()
+            count += 1
+        }
+
+        return count > 0 ? total / Double(count) : 0
     }
 
     // MARK: - Sequential Write Test

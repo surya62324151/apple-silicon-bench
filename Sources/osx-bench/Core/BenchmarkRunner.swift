@@ -3,12 +3,14 @@ import Foundation
 actor BenchmarkRunner {
     private let systemInfo: SystemInfo
     private let quickMode: Bool
+    private let duration: Int  // Duration in seconds per test
     private let selectedBenchmarks: Set<BenchmarkType>?
     private let thermalCollector = ThermalCollector()
 
-    init(systemInfo: SystemInfo, quickMode: Bool, selectedBenchmarks: Set<BenchmarkType>?) {
+    init(systemInfo: SystemInfo, quickMode: Bool, duration: Int, selectedBenchmarks: Set<BenchmarkType>?) {
         self.systemInfo = systemInfo
         self.quickMode = quickMode
+        self.duration = duration
         self.selectedBenchmarks = selectedBenchmarks
     }
 
@@ -51,20 +53,19 @@ actor BenchmarkRunner {
     }
 
     private func runBenchmark(type: BenchmarkType) async throws -> BenchmarkResult {
-        let iterations = quickMode ? 1 : 3
         let startTime = CFAbsoluteTimeGetCurrent()
         let startThermal = ThermalMonitor.currentState()
 
         let benchmark: any Benchmark
         switch type {
         case .cpuSingleCore:
-            benchmark = CPUSingleCoreBenchmark(iterations: iterations, quickMode: quickMode)
+            benchmark = CPUSingleCoreBenchmark(duration: duration, quickMode: quickMode)
         case .cpuMultiCore:
-            benchmark = CPUMultiCoreBenchmark(iterations: iterations, coreCount: systemInfo.totalCores, quickMode: quickMode)
+            benchmark = CPUMultiCoreBenchmark(duration: duration, coreCount: systemInfo.totalCores, quickMode: quickMode)
         case .memory:
-            benchmark = MemoryBenchmark(iterations: iterations)
+            benchmark = MemoryBenchmark(duration: duration)
         case .disk:
-            benchmark = DiskBenchmark(iterations: iterations, quickMode: quickMode)
+            benchmark = DiskBenchmark(duration: duration, quickMode: quickMode)
         }
 
         let tests = try await benchmark.run()

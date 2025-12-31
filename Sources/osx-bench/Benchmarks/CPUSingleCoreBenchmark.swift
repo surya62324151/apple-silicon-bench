@@ -4,15 +4,16 @@ import CryptoKit
 import Compression
 
 struct CPUSingleCoreBenchmark: Benchmark {
-    let iterations: Int
+    let iterations: Int = 1  // Kept for protocol conformance
+    let duration: Int  // Duration in seconds
     let quickMode: Bool
 
-    init(iterations: Int, quickMode: Bool = false) {
-        self.iterations = iterations
+    init(duration: Int, quickMode: Bool = false) {
+        self.duration = duration
         self.quickMode = quickMode
     }
 
-    // Scaled parameters based on mode
+    // Scaled parameters based on mode - these are per-iteration sizes
     private var integerOperations: Int { quickMode ? 10_000_000 : 100_000_000 }
     private var floatOperations: Int { quickMode ? 5_000_000 : 50_000_000 }
     private var simdIterations: Int { quickMode ? 20 : 100 }
@@ -21,38 +22,58 @@ struct CPUSingleCoreBenchmark: Benchmark {
 
     func run() async throws -> [TestResult] {
         var results: [TestResult] = []
+        let testDuration = Double(duration) / 5.0  // Divide duration among 5 tests
 
         // Integer operations
-        let intResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+        let intResult = measureForDuration(seconds: testDuration, warmup: !quickMode) {
             runIntegerTest()
         }
         results.append(TestResult(name: "Integer", value: intResult, unit: "Mops/s"))
 
         // Floating point operations
-        let floatResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+        let floatResult = measureForDuration(seconds: testDuration, warmup: !quickMode) {
             runFloatTest()
         }
         results.append(TestResult(name: "Float", value: floatResult, unit: "Mops/s"))
 
         // SIMD / Accelerate operations
-        let simdResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+        let simdResult = measureForDuration(seconds: testDuration, warmup: !quickMode) {
             runSIMDTest()
         }
         results.append(TestResult(name: "SIMD", value: simdResult, unit: "GFLOPS"))
 
         // Cryptography (AES + SHA)
-        let cryptoResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+        let cryptoResult = measureForDuration(seconds: testDuration, warmup: !quickMode) {
             runCryptoTest()
         }
         results.append(TestResult(name: "Crypto", value: cryptoResult, unit: "MB/s"))
 
         // Compression
-        let compressionResult = measureAverage(iterations: iterations, warmup: quickMode ? 0 : 1) {
+        let compressionResult = measureForDuration(seconds: testDuration, warmup: !quickMode) {
             runCompressionTest()
         }
         results.append(TestResult(name: "Compression", value: compressionResult, unit: "MB/s"))
 
         return results
+    }
+
+    /// Run operation repeatedly for the specified duration, returning averaged result
+    private func measureForDuration(seconds: Double, warmup: Bool, operation: () -> Double) -> Double {
+        // Optional warmup run
+        if warmup {
+            _ = operation()
+        }
+
+        var total = 0.0
+        var count = 0
+        let endTime = CFAbsoluteTimeGetCurrent() + seconds
+
+        while CFAbsoluteTimeGetCurrent() < endTime {
+            total += operation()
+            count += 1
+        }
+
+        return count > 0 ? total / Double(count) : 0
     }
 
     // MARK: - Integer Test

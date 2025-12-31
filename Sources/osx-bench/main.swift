@@ -6,7 +6,7 @@ struct OSXBench: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "osx-bench",
         abstract: "Benchmark tool for Apple Silicon Macs",
-        version: AppInfo.version,
+        version: AppInfo.versionString,
         subcommands: [Run.self, Info.self],
         defaultSubcommand: Run.self
     )
@@ -21,8 +21,14 @@ struct Run: AsyncParsableCommand {
     @Option(name: .long, help: "Run only specific benchmarks (cpu-single,cpu-multi,memory,disk)")
     var only: String?
 
-    @Flag(name: .long, help: "Quick mode with reduced iterations")
+    @Flag(name: .long, help: "Quick mode with reduced iterations (~3s per test)")
     var quick: Bool = false
+
+    @Option(name: [.customShort("d"), .long], help: "Duration in seconds for each test (default: 10)")
+    var duration: Int?
+
+    @Flag(name: .long, help: "Stress test mode with extended duration (~60s per test)")
+    var stress: Bool = false
 
     @Option(name: .long, help: "Export results to JSON file")
     var export: String?
@@ -42,9 +48,13 @@ struct Run: AsyncParsableCommand {
         systemInfo.printSummary()
         print()
 
+        // Determine test duration
+        let testDuration = calculateDuration()
+
         let runner = BenchmarkRunner(
             systemInfo: systemInfo,
             quickMode: quick,
+            duration: testDuration,
             selectedBenchmarks: parseSelectedBenchmarks()
         )
 
@@ -82,6 +92,19 @@ struct Run: AsyncParsableCommand {
             }
         }
         return types.isEmpty ? nil : Set(types)
+    }
+
+    private func calculateDuration() -> Int {
+        // Priority: explicit duration > stress > quick > default
+        if let duration = duration {
+            return max(1, duration)
+        } else if stress {
+            return 60  // 1 minute per test
+        } else if quick {
+            return 3   // 3 seconds per test
+        } else {
+            return 10  // Default: 10 seconds per test
+        }
     }
 }
 

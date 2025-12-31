@@ -1,39 +1,62 @@
 import Foundation
 
 struct MemoryBenchmark: Benchmark {
-    let iterations: Int
+    let iterations: Int = 1  // Kept for protocol conformance
+    let duration: Int  // Duration in seconds
 
     // Buffer size: 256 MB (larger than L3 cache to measure actual RAM)
     private let bufferSize = 256 * 1024 * 1024
 
+    init(duration: Int) {
+        self.duration = duration
+    }
+
     func run() async throws -> [TestResult] {
         var results: [TestResult] = []
+        let testDuration = Double(duration) / 4.0  // Divide duration among 4 tests
 
         // Sequential Read
-        let readResult = measureAverage(iterations: iterations) {
+        let readResult = measureForDuration(seconds: testDuration) {
             runReadTest()
         }
         results.append(TestResult(name: "Read", value: readResult, unit: "GB/s"))
 
         // Sequential Write
-        let writeResult = measureAverage(iterations: iterations) {
+        let writeResult = measureForDuration(seconds: testDuration) {
             runWriteTest()
         }
         results.append(TestResult(name: "Write", value: writeResult, unit: "GB/s"))
 
         // Copy
-        let copyResult = measureAverage(iterations: iterations) {
+        let copyResult = measureForDuration(seconds: testDuration) {
             runCopyTest()
         }
         results.append(TestResult(name: "Copy", value: copyResult, unit: "GB/s"))
 
         // Latency
-        let latencyResult = measureAverage(iterations: iterations) {
+        let latencyResult = measureForDuration(seconds: testDuration) {
             runLatencyTest()
         }
         results.append(TestResult(name: "Latency", value: latencyResult, unit: "ns", higherIsBetter: false))
 
         return results
+    }
+
+    /// Run operation repeatedly for the specified duration, returning averaged result
+    private func measureForDuration(seconds: Double, operation: () -> Double) -> Double {
+        // Warmup run
+        _ = operation()
+
+        var total = 0.0
+        var count = 0
+        let endTime = CFAbsoluteTimeGetCurrent() + seconds
+
+        while CFAbsoluteTimeGetCurrent() < endTime {
+            total += operation()
+            count += 1
+        }
+
+        return count > 0 ? total / Double(count) : 0
     }
 
     // MARK: - Read Test
