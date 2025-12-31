@@ -19,6 +19,14 @@ A lightweight, native Swift benchmark tool designed specifically for Apple Silic
 - **Beautiful HTML Reports**: Interactive charts and detailed breakdowns saved to Desktop
 - **Lightweight Binary**: ~2MB standalone executable, no dependencies required
 
+## Screenshots
+
+### Running Benchmark
+![Running Benchmark](Sources/assets/apple-silicon-bench-run.png)
+
+### Results Output
+![Results Output](Sources/assets/apple-silicon-bench-result.png)
+
 ## Quick Start
 
 ### Download Binary
@@ -175,6 +183,8 @@ The report includes:
 - Score breakdown with interactive charts
 - Thermal progression timeline
 - Detailed results for each benchmark category
+
+View an [example HTML report](Sources/assets/osx-bench-report-2025-12-31_15-05-37.html) to see the output format.
 
 ## Scoring System
 
