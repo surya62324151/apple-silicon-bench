@@ -7,12 +7,13 @@
 [![Platform](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)](https://swift.org/)
 
-A lightweight, native Swift benchmark tool designed specifically for Apple Silicon processors. Compare your M1, M2, M3, M4, M5 (and future chips) performance with comprehensive CPU, memory, and disk benchmarks.
+A lightweight, native Swift benchmark tool designed specifically for Apple Silicon processors. Compare your M1, M2, M3, M4, M5 (and future chips) performance with comprehensive CPU, GPU, memory, and disk benchmarks.
 
 ## Features
 
 - **CPU Single-Core Benchmark**: Integer, floating-point, SIMD (Accelerate framework), cryptography (AES-GCM), and compression tests
 - **CPU Multi-Core Benchmark**: Parallel workload scaling across all P-cores and E-cores
+- **GPU Benchmark (Metal)**: Compute shaders, particle simulation, image processing (blur, edge detection)
 - **Memory Benchmark**: Sequential read/write bandwidth, memory copy speed, and random access latency
 - **Disk Benchmark**: Sequential and random I/O performance with cache bypass
 - **Thermal Monitoring**: Real-time thermal state tracking during benchmarks
@@ -81,11 +82,14 @@ osx-bench run --stress
 # CPU only
 osx-bench run --only cpu-single,cpu-multi
 
+# GPU only (Metal compute)
+osx-bench run --only gpu
+
 # Memory and disk only
 osx-bench run --only memory,disk
 
-# Single-core CPU only
-osx-bench run --only cpu-single
+# All except GPU
+osx-bench run --only cpu-single,cpu-multi,memory,disk
 ```
 
 ### System Information
@@ -159,6 +163,22 @@ Same tests as single-core, executed in parallel across all CPU cores with effici
 | Rand Read | 4KB random read IOPS | IOPS |
 | Rand Write | 4KB random write IOPS | IOPS |
 
+### GPU (Metal)
+
+Native Metal compute benchmarks for Apple Silicon integrated GPUs.
+
+| Test | Description | Metric |
+|------|-------------|--------|
+| Compute | Matrix multiplication (2048x2048) | GFLOPS |
+| Particles | Particle physics simulation (1M particles) | Mparts/s |
+| Blur | Gaussian blur 5x5 kernel (4096x4096) | MP/s |
+| Edge | Sobel edge detection (4096x4096) | MP/s |
+
+**Technical details:**
+- Metal shaders compiled at runtime (no external dependencies)
+- Synthetic test images generated procedurally
+- Quick mode uses reduced sizes (1024 matrix, 100K particles, 2048 images)
+
 ## Thermal Monitoring
 
 The benchmark tracks macOS thermal state throughout the run:
@@ -190,10 +210,13 @@ View an [example HTML report](Sources/assets/osx-bench-report-2025-12-31_15-05-3
 
 Scores are normalized against a baseline (M1 base chip = 1000 points per category):
 
-- **CPU Single-Core**: 30% of total score
-- **CPU Multi-Core**: 30% of total score
-- **Memory**: 20% of total score
-- **Disk**: 20% of total score
+- **CPU Single-Core**: 25% of total score
+- **CPU Multi-Core**: 25% of total score
+- **Memory**: 15% of total score
+- **Disk**: 15% of total score
+- **GPU**: 20% of total score
+
+Higher scores indicate better performance. An M1 chip scores approximately 1000 in each category.
 
 ## Supported Systems
 
@@ -268,12 +291,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [x] GPU info (chip, core count, Metal version)
 - [x] Battery info for MacBooks (cycle count, health, charging status)
 
-### v1.3 - GPU Benchmark (Metal)
-- [ ] Metal compute shaders benchmark
-- [ ] Image processing tests (blur, edge detection, face detection)
-- [ ] Particle physics simulation
-- [ ] Stereo matching / depth estimation
-- [ ] Unified Memory bandwidth (CPU-GPU transfer)
+### v1.3 - GPU Benchmark (Metal) ✅
+- [x] Metal compute shaders benchmark (matrix multiplication)
+- [x] Image processing tests (Gaussian blur, Sobel edge detection)
+- [x] Particle physics simulation
+- [ ] Stereo matching / depth estimation (future)
+- [ ] Unified Memory bandwidth (CPU-GPU transfer) (future)
 
 ### v1.4 - AI & Machine Learning
 - [ ] Neural Engine benchmark (CoreML inference with bundled MobileNet ~500KB)

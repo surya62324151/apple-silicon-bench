@@ -66,6 +66,8 @@ actor BenchmarkRunner {
             benchmark = MemoryBenchmark(duration: duration)
         case .disk:
             benchmark = DiskBenchmark(duration: duration, quickMode: quickMode)
+        case .gpu:
+            benchmark = GPUBenchmark(duration: duration, quickMode: quickMode, gpuCores: systemInfo.gpuCores)
         }
 
         let tests = try await benchmark.run()

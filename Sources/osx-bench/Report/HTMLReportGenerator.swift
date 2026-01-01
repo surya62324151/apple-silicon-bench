@@ -382,6 +382,12 @@ struct HTMLReportGenerator {
                         <div class="score-value">\(formatScoreHTML(scores.disk))</div>
                     </div>
                     """ : "")
+                    \(scores.ranGpu ? """
+                    <div class="score-card">
+                        <div class="score-label">GPU</div>
+                        <div class="score-value">\(formatScoreHTML(scores.gpu))</div>
+                    </div>
+                    """ : "")
                 </section>
 
                 \(generateThermalSection())
@@ -533,6 +539,7 @@ struct HTMLReportGenerator {
         if scores.ranCpuMulti { labels.append("'CPU Multi'") }
         if scores.ranMemory { labels.append("'Memory'") }
         if scores.ranDisk { labels.append("'Disk'") }
+        if scores.ranGpu { labels.append("'GPU'") }
         return labels.joined(separator: ", ")
     }
 
@@ -542,6 +549,7 @@ struct HTMLReportGenerator {
         if scores.ranCpuMulti { data.append(String(Int(scores.cpuMultiCore))) }
         if scores.ranMemory { data.append(String(Int(scores.memory))) }
         if scores.ranDisk { data.append(String(Int(scores.disk))) }
+        if scores.ranGpu { data.append(String(Int(scores.gpu))) }
         return data.joined(separator: ", ")
     }
 
@@ -550,14 +558,15 @@ struct HTMLReportGenerator {
             (r: 233, g: 69, b: 96),    // CPU Single - red
             (r: 0, g: 217, b: 255),    // CPU Multi - cyan
             (r: 0, g: 255, b: 136),    // Memory - green
-            (r: 254, g: 202, b: 87)    // Disk - yellow
+            (r: 254, g: 202, b: 87),   // Disk - yellow
+            (r: 155, g: 89, b: 182)    // GPU - purple
         ]
         var result: [String] = []
-        var colorIndex = 0
-        if scores.ranCpuSingle { result.append(formatColor(colors[0], alpha: alpha)); colorIndex += 1 }
-        if scores.ranCpuMulti { result.append(formatColor(colors[1], alpha: alpha)); colorIndex += 1 }
-        if scores.ranMemory { result.append(formatColor(colors[2], alpha: alpha)); colorIndex += 1 }
-        if scores.ranDisk { result.append(formatColor(colors[3], alpha: alpha)); colorIndex += 1 }
+        if scores.ranCpuSingle { result.append(formatColor(colors[0], alpha: alpha)) }
+        if scores.ranCpuMulti { result.append(formatColor(colors[1], alpha: alpha)) }
+        if scores.ranMemory { result.append(formatColor(colors[2], alpha: alpha)) }
+        if scores.ranDisk { result.append(formatColor(colors[3], alpha: alpha)) }
+        if scores.ranGpu { result.append(formatColor(colors[4], alpha: alpha)) }
         return result.joined(separator: ", ")
     }
 

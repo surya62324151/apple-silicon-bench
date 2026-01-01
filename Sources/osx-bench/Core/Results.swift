@@ -7,6 +7,7 @@ enum BenchmarkType: String, CaseIterable, Codable {
     case cpuMultiCore = "cpu-multi"
     case memory = "memory"
     case disk = "disk"
+    case gpu = "gpu"
 
     var displayName: String {
         switch self {
@@ -14,6 +15,7 @@ enum BenchmarkType: String, CaseIterable, Codable {
         case .cpuMultiCore: return "CPU Multi-Core"
         case .memory: return "Memory"
         case .disk: return "Disk"
+        case .gpu: return "GPU"
         }
     }
 }
@@ -106,24 +108,28 @@ struct BenchmarkScores: Codable {
     let cpuMultiCore: Double
     let memory: Double
     let disk: Double
+    let gpu: Double
     let total: Double
     // Track which benchmarks were run (vs skipped via --only)
     let ranCpuSingle: Bool
     let ranCpuMulti: Bool
     let ranMemory: Bool
     let ranDisk: Bool
+    let ranGpu: Bool
 
-    init(cpuSingleCore: Double, cpuMultiCore: Double, memory: Double, disk: Double, total: Double,
-         ranCpuSingle: Bool = false, ranCpuMulti: Bool = false, ranMemory: Bool = false, ranDisk: Bool = false) {
+    init(cpuSingleCore: Double, cpuMultiCore: Double, memory: Double, disk: Double, gpu: Double, total: Double,
+         ranCpuSingle: Bool = false, ranCpuMulti: Bool = false, ranMemory: Bool = false, ranDisk: Bool = false, ranGpu: Bool = false) {
         self.cpuSingleCore = cpuSingleCore
         self.cpuMultiCore = cpuMultiCore
         self.memory = memory
         self.disk = disk
+        self.gpu = gpu
         self.total = total
         self.ranCpuSingle = ranCpuSingle
         self.ranCpuMulti = ranCpuMulti
         self.ranMemory = ranMemory
         self.ranDisk = ranDisk
+        self.ranGpu = ranGpu
     }
 
     func printSummary(quickMode: Bool = false, partialRun: Bool = false) {
@@ -136,6 +142,7 @@ struct BenchmarkScores: Codable {
         if ranCpuMulti { print(dotPad("CPU Multi-Core", formatScore(cpuMultiCore))) }
         if ranMemory { print(dotPad("Memory", formatScore(memory))) }
         if ranDisk { print(dotPad("Disk", formatScore(disk))) }
+        if ranGpu { print(dotPad("GPU", formatScore(gpu))) }
         print(line)
         print(dotPad("TOTAL SCORE", formatScore(total)))
         print(line)
@@ -185,6 +192,12 @@ struct BenchmarkScorer {
         "disk_seq_write": 2500,       // 2500 MB/s
         "disk_rand_read": 300000,     // 300K IOPS
         "disk_rand_write": 250000,    // 250K IOPS
+
+        // GPU (GFLOPS, Mparts/s, MP/s) - M1 baseline
+        "gpu_compute": 140,           // ~140 GFLOPS matrix multiply
+        "gpu_particles": 900,         // ~900M particles/s
+        "gpu_blur": 1800,             // ~1800 MP/s
+        "gpu_edge": 5300,             // ~5300 MP/s
     ]
 
     func calculateScores(from results: BenchmarkResults, coreCount: Int = 8) -> BenchmarkScores {
@@ -193,33 +206,40 @@ struct BenchmarkScorer {
         let ranCpuMulti = results.result(for: .cpuMultiCore) != nil
         let ranMemory = results.result(for: .memory) != nil
         let ranDisk = results.result(for: .disk) != nil
+        let ranGpu = results.result(for: .gpu) != nil
 
         let cpuSingle = calculateCPUSingleScore(results)
         let cpuMulti = calculateCPUMultiScore(results, coreCount: coreCount)
         let memory = calculateMemoryScore(results)
         let disk = calculateDiskScore(results)
+        let gpu = calculateGPUScore(results)
 
         // Weighted total - include categories that were run (even if score is 0 = failed)
         // This prevents partial runs (--only) from being unfairly penalized
         // but still penalizes failures appropriately
+        // Weights: CPU-Single 25%, CPU-Multi 25%, Memory 15%, Disk 15%, GPU 20%
         var totalScore = 0.0
         var totalWeight = 0.0
 
         if ranCpuSingle {
-            totalScore += cpuSingle * 0.3
-            totalWeight += 0.3
+            totalScore += cpuSingle * 0.25
+            totalWeight += 0.25
         }
         if ranCpuMulti {
-            totalScore += cpuMulti * 0.3
-            totalWeight += 0.3
+            totalScore += cpuMulti * 0.25
+            totalWeight += 0.25
         }
         if ranMemory {
-            totalScore += memory * 0.2
-            totalWeight += 0.2
+            totalScore += memory * 0.15
+            totalWeight += 0.15
         }
         if ranDisk {
-            totalScore += disk * 0.2
-            totalWeight += 0.2
+            totalScore += disk * 0.15
+            totalWeight += 0.15
+        }
+        if ranGpu {
+            totalScore += gpu * 0.20
+            totalWeight += 0.20
         }
 
         // Normalize to account for skipped categories (not failures)
@@ -230,11 +250,13 @@ struct BenchmarkScorer {
             cpuMultiCore: cpuMulti,
             memory: memory,
             disk: disk,
+            gpu: gpu,
             total: total,
             ranCpuSingle: ranCpuSingle,
             ranCpuMulti: ranCpuMulti,
             ranMemory: ranMemory,
-            ranDisk: ranDisk
+            ranDisk: ranDisk,
+            ranGpu: ranGpu
         )
     }
 
@@ -312,6 +334,25 @@ struct BenchmarkScorer {
             // Skip failed tests (value <= 0) to avoid dragging down the average
             guard test.value > 0 else { continue }
             let key = "disk_\(test.name.lowercased().replacingOccurrences(of: " ", with: "_"))"
+            if let reference = referenceValues[key] {
+                score += (test.value / reference) * 1000
+                count += 1
+            }
+        }
+
+        return count > 0 ? score / Double(count) : 0
+    }
+
+    private func calculateGPUScore(_ results: BenchmarkResults) -> Double {
+        guard let result = results.result(for: .gpu) else { return 0 }
+
+        var score = 0.0
+        var count = 0
+
+        for test in result.tests {
+            // Skip failed tests (value <= 0) to avoid dragging down the average
+            guard test.value > 0 else { continue }
+            let key = "gpu_\(test.name.lowercased())"
             if let reference = referenceValues[key] {
                 score += (test.value / reference) * 1000
                 count += 1

@@ -18,7 +18,7 @@ struct Run: AsyncParsableCommand {
         abstract: "Run benchmarks"
     )
 
-    @Option(name: .long, help: "Run only specific benchmarks (cpu-single,cpu-multi,memory,disk)")
+    @Option(name: .long, help: "Run only specific benchmarks (cpu-single,cpu-multi,memory,disk,gpu)")
     var only: String?
 
     @Flag(name: .long, help: "Quick mode with reduced iterations (~3s per test)")
@@ -91,6 +91,7 @@ struct Run: AsyncParsableCommand {
             case "cpu-multi", "cpumulti": return .cpuMultiCore
             case "memory", "ram": return .memory
             case "disk", "storage": return .disk
+            case "gpu", "metal": return .gpu
             default: return nil
             }
         }
