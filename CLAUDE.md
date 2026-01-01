@@ -179,3 +179,71 @@ Currently no test suite. When adding tests:
 - Self-contained HTML with inline CSS and Chart.js CDN
 - Saved to `~/Desktop/OSX-Bench-Reports/`
 - Dark theme with responsive design
+
+## Security
+
+Security findings and policies are documented in `SECURITY.md`. When performing security audits or addressing vulnerabilities:
+
+### Handling Security Findings
+
+1. **Evaluate the finding** against these criteria:
+   - **Severity**: Critical, High, Medium, Low
+   - **Exploitability**: How easy is it to exploit?
+   - **Impact**: What's the worst-case scenario?
+   - **Context**: Is this relevant for a benchmark tool?
+
+2. **Decision framework**:
+
+| Decision | When to Apply | Action |
+|----------|---------------|--------|
+| **Fix immediately** | Critical/High severity, easy fix, no perf impact | Implement fix, bump PATCH version |
+| **Fix with consideration** | Medium severity, may affect performance | Measure perf impact, fix if <1% overhead |
+| **Accept as known limitation** | Low severity OR fix significantly impacts benchmark accuracy | Document in SECURITY.md |
+| **Won't fix** | Not applicable to benchmark context | Document reasoning in SECURITY.md |
+
+3. **Performance vs Security trade-offs**:
+   - This is a **benchmark tool** - measurement accuracy is critical
+   - Fixes that add >1% overhead to benchmark results should be carefully considered
+   - Document accepted risks with clear rationale
+   - Examples of acceptable risks:
+     - Memory not zeroed (adds ~100ms per 256MB)
+     - Test crypto keys not zeroed (synthetic data, no real secrets)
+
+### Updating SECURITY.md
+
+When adding new findings:
+
+```markdown
+### N. Issue Title
+
+**Status**: Fixed v1.X.X | Accepted Risk | Won't Fix
+**CWE**: CWE-XXX (Category Name)
+
+**Details**:
+- What the issue is
+- Where it occurs (file:line)
+
+**Rationale** (if not fixed):
+- Why this is acceptable for a benchmark tool
+- Performance impact of fixing
+- Risk level assessment
+
+**Risk Level**: Critical | High | Medium | Low | Very Low
+```
+
+### Security Commit Convention
+
+Use `security:` prefix for security-related commits:
+```bash
+git commit -m "security: add memory allocation validation (CWE-770)"
+git commit -m "security: fix file permissions in disk benchmark"
+```
+
+### Audit Tracking
+
+Update the Audit History table in SECURITY.md after each security review:
+```markdown
+| Date | Auditor | Findings | Resolution |
+|------|---------|----------|------------|
+| YYYY-MM-DD | Internal/External | X issues | Y fixed, Z accepted |
+```
