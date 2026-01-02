@@ -171,34 +171,47 @@ struct BenchmarkScores: Codable {
 // MARK: - Scorer
 
 struct BenchmarkScorer {
-    // Reference values (baseline = M1 base chip = 1000 points per category)
+    // Reference values (baseline = M1 8-core = 1000 points per category)
     // Units MUST match the benchmark output units exactly
-    // Calibrated from real M1 benchmarks (10s duration, not quick mode)
+    // Calibrated from real M1 8GB benchmarks (median of 5 runs, full mode)
+    //
+    // Scoring philosophy:
+    // - M1 base (8-core) = 1000 points in each category
+    // - Other chips score proportionally higher/lower based on raw performance
+    // - A M3 Pro scoring ~1300 means it's 30% faster than M1 base
+    // - No per-chip scaling - we measure absolute performance vs M1 baseline
     private let referenceValues: [String: Double] = [
-        // CPU Single - calibrated from M1 base (10s tests)
-        "integer": 38,                // ~38 Mops/s on M1
-        "float": 32,                  // ~32 Mops/s on M1
-        "simd": 8,                    // ~8 GFLOPS on M1
-        "crypto": 1500,               // ~1500 MB/s on M1
-        "compression": 500,           // ~500 MB/s on M1
+        // CPU Single-Core - median from 5 M1 runs
+        "integer": 1570,              // 1570 Mops/s on M1
+        "float": 126.8,               // 126.8 Mops/s on M1
+        "simd": 8.84,                 // 8.84 GFLOPS on M1
+        "crypto": 1480,               // 1480 MB/s on M1
+        "compression": 498.57,        // 498.57 MB/s on M1
 
-        // Memory (GB/s or ns) - calibrated from M1 base
-        "mem_read": 1.5,              // ~1.5 GB/s on M1
-        "mem_write": 1.2,             // ~1.2 GB/s on M1
-        "mem_copy": 26,               // ~26 GB/s on M1
-        "mem_latency": 170,           // ~170 ns on M1 (lower is better)
+        // CPU Multi-Core - median from 5 M1 runs (8 cores: 4P + 4E)
+        "integer_multi": 9940,        // 9940 Mops/s on M1 (8 cores)
+        "float_multi": 803,           // 803 Mops/s on M1 (8 cores)
+        "simd_multi": 6.18,           // 6.18 GFLOPS on M1 (8 cores)
+        "crypto_multi": 6590,         // 6590 MB/s on M1 (8 cores)
+        "compression_multi": 2690,    // 2690 MB/s on M1 (8 cores)
 
-        // Disk (MB/s or IOPS) - calibrated from M1 base (SSD varies by model)
-        "disk_seq_read": 14000,       // ~14000 MB/s on M1 (quick mode)
-        "disk_seq_write": 1100,       // ~1100 MB/s on M1 (quick mode)
-        "disk_rand_read": 22000,      // ~22K IOPS on M1 (quick mode)
-        "disk_rand_write": 5700,      // ~5.7K IOPS on M1 (quick mode)
+        // Memory (GB/s or ns) - median from 5 M1 runs
+        "mem_read": 55.97,            // 55.97 GB/s on M1
+        "mem_write": 25.59,           // 25.59 GB/s on M1
+        "mem_copy": 27.84,            // 27.84 GB/s on M1
+        "mem_latency": 54.95,         // 54.95 ns on M1 (lower is better)
 
-        // GPU (GFLOPS, Mparts/s, MP/s) - calibrated from M1 base (quick mode)
-        "gpu_compute": 150,           // ~150 GFLOPS matrix multiply on M1
-        "gpu_particles": 290,         // ~290M particles/s on M1
-        "gpu_blur": 1700,             // ~1700 MP/s on M1
-        "gpu_edge": 4300,             // ~4300 MP/s on M1
+        // Disk (MB/s or IOPS) - median from 5 M1 runs (cache bypass)
+        "disk_seq_read": 2200,        // 2200 MB/s on M1
+        "disk_seq_write": 991,        // 991 MB/s on M1
+        "disk_rand_read": 584000,     // 584K IOPS on M1
+        "disk_rand_write": 3990,      // 3990 IOPS on M1
+
+        // GPU (GFLOPS, Mparts/s, MP/s) - median from 5 M1 runs (8-core GPU)
+        "gpu_compute": 149.2,         // 149.2 GFLOPS matrix multiply on M1
+        "gpu_particles": 909.74,      // 909.74 Mparts/s on M1
+        "gpu_blur": 1870,             // 1870 MP/s on M1
+        "gpu_edge": 5410,             // 5410 MP/s on M1
     ]
 
     func calculateScores(from results: BenchmarkResults, coreCount: Int = 8) -> BenchmarkScores {
@@ -268,28 +281,9 @@ struct BenchmarkScorer {
 
     private func calculateCPUMultiScore(_ results: BenchmarkResults, coreCount: Int) -> Double {
         guard let result = results.result(for: .cpuMultiCore) else { return 0 }
-
-        // Multi-core: geometric mean with core-scaled references
-        // Baseline M1 = 8 cores, so we scale reference by actual core count
-        let coreScaleFactor = Double(coreCount) / 8.0
-        var logSum = 0.0
-        var count = 0
-
-        for test in result.tests {
-            guard test.value > 0 else { continue }
-            let baseName = test.name.lowercased().replacingOccurrences(of: "_multi", with: "")
-            if let reference = referenceValues[baseName] {
-                // Reference for multi = single-core reference × 8 cores × scale factor
-                let multiReference = reference * 8 * coreScaleFactor
-                let ratio = test.value / multiReference
-                logSum += log(ratio)
-                count += 1
-            }
-        }
-
-        guard count > 0 else { return 0 }
-        // Geometric mean of ratios, scaled to baseline 1000
-        return 1000 * exp(logSum / Double(count))
+        // Use dedicated multi-core reference values (M1 8-core baseline)
+        // Chips with more cores will naturally score higher
+        return calculateGeometricMeanScore(tests: result.tests, keyPrefix: "", transformKey: { $0.lowercased() })
     }
 
     private func calculateMemoryScore(_ results: BenchmarkResults) -> Double {
@@ -299,7 +293,17 @@ struct BenchmarkScorer {
 
     private func calculateDiskScore(_ results: BenchmarkResults) -> Double {
         guard let result = results.result(for: .disk) else { return 0 }
-        return calculateGeometricMeanScore(tests: result.tests, keyPrefix: "disk_", transformKey: { $0.replacingOccurrences(of: " ", with: "_") })
+        // Disk scores use clamped ratios (0.25 - 4.0) to prevent outliers from
+        // dominating the score. Disk benchmarks are highly variable due to:
+        // - SSD capacity differences (256GB vs 1TB = different NAND channels)
+        // - Cache effects (especially on sequential reads)
+        // - Volume state (free space, APFS compression)
+        return calculateGeometricMeanScore(
+            tests: result.tests,
+            keyPrefix: "disk_",
+            transformKey: { $0.replacingOccurrences(of: " ", with: "_") },
+            clampRatio: (min: 0.25, max: 4.0)
+        )
     }
 
     private func calculateGPUScore(_ results: BenchmarkResults) -> Double {
@@ -310,12 +314,19 @@ struct BenchmarkScorer {
     // MARK: - Geometric Mean Helper
 
     /// Calculates category score using geometric mean of ratios (more statistically sound than arithmetic mean)
-    /// Formula: Score = 1000 × exp(Σ wᵢ·ln(rᵢ) / Σ wᵢ) where rᵢ = value/baseline (or baseline/value for lower-is-better)
+    /// Formula: Score = 1000 × exp(Σ ln(rᵢ) / n) where rᵢ = value/baseline (or baseline/value for lower-is-better)
     /// This prevents outliers from dominating and properly handles different units
+    ///
+    /// - Parameters:
+    ///   - tests: Array of test results to score
+    ///   - keyPrefix: Prefix for looking up reference values (e.g., "mem_", "disk_", "gpu_")
+    ///   - transformKey: Optional transform for test name before lookup
+    ///   - clampRatio: Optional (min, max) bounds to clamp ratios, preventing extreme outliers
     private func calculateGeometricMeanScore(
         tests: [TestResult],
         keyPrefix: String,
-        transformKey: ((String) -> String)? = nil
+        transformKey: ((String) -> String)? = nil,
+        clampRatio: (min: Double, max: Double)? = nil
     ) -> Double {
         var logSum = 0.0
         var count = 0
@@ -329,7 +340,13 @@ struct BenchmarkScorer {
 
             if let reference = referenceValues[key] {
                 // Calculate ratio: higher-is-better uses value/reference, lower-is-better inverts
-                let ratio = test.higherIsBetter ? (test.value / reference) : (reference / test.value)
+                var ratio = test.higherIsBetter ? (test.value / reference) : (reference / test.value)
+
+                // Apply clamp if specified (prevents outliers from dominating score)
+                if let clamp = clampRatio {
+                    ratio = Swift.min(Swift.max(ratio, clamp.min), clamp.max)
+                }
+
                 logSum += log(ratio)
                 count += 1
             }

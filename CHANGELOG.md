@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-01-02
+
+### Changed
+
+- **Baseline calibration**: Re-calibrated all reference values from median of 5 real M1 runs
+  - CPU Single-Core: Integer, Float, SIMD, Crypto, Compression
+  - CPU Multi-Core: Added dedicated multi-core baselines (not scaled from single)
+  - Memory: Read, Write, Copy, Latency
+  - Disk: Sequential Read/Write, Random Read/Write IOPS
+  - GPU: Compute, Particles, Blur, Edge detection
+- M1 base chip now correctly scores ~1000 in each category
+- Other Apple Silicon chips score proportionally (M2 ~1100, M3 ~1290, M4 ~1600)
+
+### Added
+
+- **Ratio clamping for Disk scores**: Clamp ratios to 0.25-4.0 range
+  - Prevents cache effects from producing unrealistic scores
+  - Handles SSD capacity variance (256GB vs 1TB have different speeds)
+  - More stable scores across different volume states
+
+### Fixed
+
+- CPU Multi-Core scoring: Now uses dedicated multi-core baselines instead of
+  incorrectly scaling single-core values by core count
+
 ## [1.3.1] - 2026-01-01
 
 ### Changed
@@ -237,6 +262,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Actor-based benchmark runner
 - ~2MB standalone binary
 
+[1.3.2]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v1.3.2
 [1.3.1]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v1.3.1
 [1.3.0]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v1.3.0
 [1.2.7]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v1.2.7
