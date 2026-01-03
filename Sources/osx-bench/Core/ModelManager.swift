@@ -4,15 +4,13 @@ import CryptoKit
 // MARK: - Model Manager
 
 struct ModelManager {
-    // Model configuration
+    // Model configuration - download directly from Apple's ML assets
     static let modelVersion = "v1"
-    static let modelName = "MobileNetV2.mlmodelc"
-    static let modelZipName = "MobileNetV2.mlmodelc.zip"
-    static let modelURL = "https://github.com/carlosacchi/apple-silicon-bench/releases/download/models-\(modelVersion)/\(modelZipName)"
+    static let modelSourceName = "MobileNetV2.mlmodel"
+    static let modelCompiledName = "MobileNetV2.mlmodelc"
 
-    // SHA256 hash of the zip file (to be updated when model is uploaded)
-    // This ensures integrity and prevents tampering
-    static let expectedSHA256 = "PLACEHOLDER_SHA256_HASH"
+    // Apple's official CoreML model repository
+    static let appleModelURL = "https://ml-assets.apple.com/coreml/models/Image/ImageClassification/MobileNetV2/MobileNetV2.mlmodel"
 
     // Cache directory
     static var cacheDirectory: URL {
@@ -20,8 +18,12 @@ struct ModelManager {
         return appSupport.appendingPathComponent("osx-bench/models/\(modelVersion)")
     }
 
-    static var cachedModelPath: URL {
-        cacheDirectory.appendingPathComponent(modelName)
+    static var cachedSourcePath: URL {
+        cacheDirectory.appendingPathComponent(modelSourceName)
+    }
+
+    static var cachedCompiledPath: URL {
+        cacheDirectory.appendingPathComponent(modelCompiledName)
     }
 
     let customModelPath: String?
@@ -46,27 +48,27 @@ struct ModelManager {
             return url
         }
 
-        // Priority 2: Cached model
-        if FileManager.default.fileExists(atPath: Self.cachedModelPath.path) {
-            return Self.cachedModelPath
+        // Priority 2: Cached compiled model
+        if FileManager.default.fileExists(atPath: Self.cachedCompiledPath.path) {
+            return Self.cachedCompiledPath
         }
 
-        // Priority 3: Download (if not offline)
+        // Priority 3: Download and compile (if not offline)
         if offlineMode {
             print("  ⚠️  AI model not cached and --offline specified. Skipping AI benchmark.")
             return nil
         }
 
-        // Download the model
-        return try await downloadModel()
+        // Download and compile the model
+        return try await downloadAndCompileModel()
     }
 
-    // MARK: - Download
+    // MARK: - Download and Compile
 
-    private func downloadModel() async throws -> URL {
-        print("  📥 Downloading AI model (\(Self.modelZipName))...")
+    private func downloadAndCompileModel() async throws -> URL {
+        print("  📥 Downloading AI model from Apple ML assets...")
 
-        guard let url = URL(string: Self.modelURL) else {
+        guard let url = URL(string: Self.appleModelURL) else {
             throw ModelError.invalidURL
         }
 
@@ -84,51 +86,36 @@ struct ModelManager {
             throw ModelError.downloadFailed(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
         }
 
-        // Move to permanent location
-        let zipPath = Self.cacheDirectory.appendingPathComponent(Self.modelZipName)
+        // Move to cache directory
+        try? FileManager.default.removeItem(at: Self.cachedSourcePath)
+        try FileManager.default.moveItem(at: tempURL, to: Self.cachedSourcePath)
 
-        // Remove existing zip if present
-        try? FileManager.default.removeItem(at: zipPath)
-        try FileManager.default.moveItem(at: tempURL, to: zipPath)
+        print("  ⚙️  Compiling model for your device...")
 
-        // Verify SHA256 (skip if placeholder)
-        if Self.expectedSHA256 != "PLACEHOLDER_SHA256_HASH" {
-            print("  🔐 Verifying integrity...")
-            let actualHash = try sha256Hash(of: zipPath)
-            guard actualHash.lowercased() == Self.expectedSHA256.lowercased() else {
-                try? FileManager.default.removeItem(at: zipPath)
-                throw ModelError.hashMismatch(expected: Self.expectedSHA256, actual: actualHash)
-            }
-        }
+        // Compile the model using coremlcompiler
+        try compileModel()
 
-        // Unzip
-        print("  📦 Extracting model...")
-        try unzip(zipPath, to: Self.cacheDirectory)
+        // Clean up source .mlmodel (keep only compiled)
+        try? FileManager.default.removeItem(at: Self.cachedSourcePath)
 
-        // Clean up zip
-        try? FileManager.default.removeItem(at: zipPath)
-
-        // Verify model exists
-        guard FileManager.default.fileExists(atPath: Self.cachedModelPath.path) else {
-            throw ModelError.extractionFailed
+        // Verify compiled model exists
+        guard FileManager.default.fileExists(atPath: Self.cachedCompiledPath.path) else {
+            throw ModelError.compilationFailed
         }
 
         print("  ✓ Model ready")
-        return Self.cachedModelPath
+        return Self.cachedCompiledPath
     }
 
-    // MARK: - Helpers
-
-    private func sha256Hash(of url: URL) throws -> String {
-        let data = try Data(contentsOf: url)
-        let hash = SHA256.hash(data: data)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
-    }
-
-    private func unzip(_ zipURL: URL, to destination: URL) throws {
+    private func compileModel() throws {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-o", "-q", zipURL.path, "-d", destination.path]
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = [
+            "coremlcompiler",
+            "compile",
+            Self.cachedSourcePath.path,
+            Self.cacheDirectory.path
+        ]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
 
@@ -136,7 +123,7 @@ struct ModelManager {
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
-            throw ModelError.extractionFailed
+            throw ModelError.compilationFailed
         }
     }
 }
@@ -147,8 +134,7 @@ enum ModelError: LocalizedError {
     case customModelNotFound(path: String)
     case invalidURL
     case downloadFailed(statusCode: Int)
-    case hashMismatch(expected: String, actual: String)
-    case extractionFailed
+    case compilationFailed
 
     var errorDescription: String? {
         switch self {
@@ -158,10 +144,8 @@ enum ModelError: LocalizedError {
             return "Invalid model URL"
         case .downloadFailed(let statusCode):
             return "Model download failed with status code: \(statusCode)"
-        case .hashMismatch(let expected, let actual):
-            return "Model integrity check failed. Expected SHA256: \(expected), got: \(actual)"
-        case .extractionFailed:
-            return "Failed to extract model archive"
+        case .compilationFailed:
+            return "Failed to compile CoreML model (requires Xcode Command Line Tools)"
         }
     }
 }

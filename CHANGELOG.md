@@ -18,7 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Total Score remains: CPU-Single, CPU-Multi, Memory, Disk, GPU
   - AI Score: geometric mean of CPU/GPU/Neural Engine/BNNS tests
 - **Model download system** for CoreML models
-  - Automatic download from GitHub Releases with SHA256 verification
+  - Automatic download from Apple's ML assets (`ml-assets.apple.com`)
+  - Model compiled locally using `coremlcompiler` for your device
   - Cache in `~/Library/Application Support/osx-bench/models/`
   - `--model-path` option for custom local models
   - `--offline` flag to skip AI benchmark without download
