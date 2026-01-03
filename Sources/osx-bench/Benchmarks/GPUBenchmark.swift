@@ -373,18 +373,24 @@ struct GPUBenchmark: Benchmark {
 
     private func fillTextureWithPattern(_ texture: MTLTexture) {
         let size = texture.width
-        var pixels = [UInt8](repeating: 0, count: size * size * 4)
+        let rowBytes = size * 4
 
+        // Allocate on heap instead of stack to avoid stack overflow for large textures
+        let pixelData = UnsafeMutablePointer<UInt8>.allocate(capacity: size * size * 4)
+        defer { pixelData.deallocate() }
+
+        // Fill row by row to be more cache-friendly
         for y in 0..<size {
             for x in 0..<size {
                 let idx = (y * size + x) * 4
                 // Gradient + noise pattern for realistic workload
                 let gradient = UInt8((x + y) % 256)
-                let noise = UInt8.random(in: 0...50)
-                pixels[idx + 0] = gradient &+ noise        // R
-                pixels[idx + 1] = UInt8(255 - gradient)    // G
-                pixels[idx + 2] = UInt8((x * y) % 256)     // B
-                pixels[idx + 3] = 255                       // A
+                // Use deterministic "noise" for reproducibility (avoid random per-pixel)
+                let noise = UInt8((x * 7 + y * 13) % 50)
+                pixelData[idx + 0] = gradient &+ noise        // R
+                pixelData[idx + 1] = UInt8(truncatingIfNeeded: 255 - Int(gradient))  // G
+                pixelData[idx + 2] = UInt8((x * y) % 256)     // B
+                pixelData[idx + 3] = 255                       // A
             }
         }
 
@@ -392,8 +398,8 @@ struct GPUBenchmark: Benchmark {
             region: MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
                              size: MTLSize(width: size, height: size, depth: 1)),
             mipmapLevel: 0,
-            withBytes: pixels,
-            bytesPerRow: size * 4
+            withBytes: pixelData,
+            bytesPerRow: rowBytes
         )
     }
 }
