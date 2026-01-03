@@ -5,12 +5,18 @@ import CryptoKit
 
 struct ModelManager {
     // Model configuration - download directly from Apple's ML assets
+    // Using fixed version with SHA256 verification for reproducibility
     static let modelVersion = "v1"
     static let modelSourceName = "MobileNetV2.mlmodel"
     static let modelCompiledName = "MobileNetV2.mlmodelc"
 
     // Apple's official CoreML model repository
+    // MobileNetV2 last modified: 2019-11-05 (stable version)
     static let appleModelURL = "https://ml-assets.apple.com/coreml/models/Image/ImageClassification/MobileNetV2/MobileNetV2.mlmodel"
+
+    // SHA256 hash of the model file for integrity verification
+    // This ensures we always use the same model version for reproducible benchmarks
+    static let expectedSHA256 = "cb5a35f593582232140556bbfa4618e66b37b8ff2fc33ba17db909e1050fd144"
 
     // Cache directory
     static var cacheDirectory: URL {
@@ -90,6 +96,14 @@ struct ModelManager {
         try? FileManager.default.removeItem(at: Self.cachedSourcePath)
         try FileManager.default.moveItem(at: tempURL, to: Self.cachedSourcePath)
 
+        // Verify SHA256 hash for reproducibility
+        print("  🔐 Verifying model integrity...")
+        let actualHash = try sha256Hash(of: Self.cachedSourcePath)
+        guard actualHash.lowercased() == Self.expectedSHA256.lowercased() else {
+            try? FileManager.default.removeItem(at: Self.cachedSourcePath)
+            throw ModelError.hashMismatch(expected: Self.expectedSHA256, actual: actualHash)
+        }
+
         print("  ⚙️  Compiling model for your device...")
 
         // Compile the model using coremlcompiler
@@ -126,6 +140,14 @@ struct ModelManager {
             throw ModelError.compilationFailed
         }
     }
+
+    // MARK: - Helpers
+
+    private func sha256Hash(of url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
 }
 
 // MARK: - Errors
@@ -134,6 +156,7 @@ enum ModelError: LocalizedError {
     case customModelNotFound(path: String)
     case invalidURL
     case downloadFailed(statusCode: Int)
+    case hashMismatch(expected: String, actual: String)
     case compilationFailed
 
     var errorDescription: String? {
@@ -144,6 +167,8 @@ enum ModelError: LocalizedError {
             return "Invalid model URL"
         case .downloadFailed(let statusCode):
             return "Model download failed with status code: \(statusCode)"
+        case .hashMismatch(let expected, let actual):
+            return "Model integrity check failed. Expected SHA256: \(expected), got: \(actual)"
         case .compilationFailed:
             return "Failed to compile CoreML model (requires Xcode Command Line Tools)"
         }

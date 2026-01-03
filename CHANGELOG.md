@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-01-03
+
+### Changed
+
+- **Model integrity verification**: Added SHA256 hash check for downloaded model
+  - Ensures reproducible benchmarks with fixed model version
+  - Model hash: `cb5a35f593582232140556bbfa4618e66b37b8ff2fc33ba17db909e1050fd144`
+  - MobileNetV2 from Apple ML assets (last modified: 2019-11-05)
+
 ## [2.0.0] - 2026-01-03
 
 ### Added
@@ -352,6 +361,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Actor-based benchmark runner
 - ~2MB standalone binary
 
+[2.0.1]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v2.0.1
 [2.0.0]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v2.0.0
 [1.4.1]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v1.4.1
 [1.4.0]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v1.4.0
