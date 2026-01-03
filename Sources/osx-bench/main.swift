@@ -39,12 +39,15 @@ struct Run: AsyncParsableCommand {
     @Flag(name: .long, help: "Skip AI benchmark if model not cached (no download)")
     var offline: Bool = false
 
+    @Flag(name: [.customLong("autoaccept"), .long], help: "Auto-accept privacy policy (CI/non-interactive)")
+    var autoAccept: Bool = false
+
     @Flag(name: .long, help: "Run advanced profiling (memory stride/block sweep, disk QD matrix, CPU scaling)")
     var advanced: Bool = false
 
     func run() async throws {
         // Check privacy policy consent on first run
-        guard ConsentManager.ensureConsent() else {
+        guard ConsentManager.ensureConsent(autoAccept: autoAccept) else {
             throw ExitCode.failure
         }
 

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.5] - 2026-01-03
+
+### Added
+
+- `--auto-accept` / `--autoaccept` flag to auto-accept privacy policy (CI/non-interactive)
+
+### Changed
+
+- CI workflow now runs full and advanced benchmarks with auto-accept enabled
+
 ## [2.1.4] - 2026-01-03
 
 ### Fixed
@@ -448,6 +458,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Actor-based benchmark runner
 - ~2MB standalone binary
 
+[2.1.5]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v2.1.5
 [2.1.4]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v2.1.4
 [2.1.3]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v2.1.3
 [2.1.2]: https://github.com/carlosacchi/apple-silicon-bench/releases/tag/v2.1.2

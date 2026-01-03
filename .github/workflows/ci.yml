@@ -33,3 +33,5 @@ jobs:
           ./.build/release/osx-bench --help
           ./.build/release/osx-bench info
           ./.build/release/osx-bench run --help
+          ./.build/release/osx-bench run --auto-accept
+          ./.build/release/osx-bench run --advanced --auto-accept

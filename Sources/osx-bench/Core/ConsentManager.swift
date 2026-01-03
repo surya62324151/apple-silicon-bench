@@ -106,8 +106,20 @@ struct ConsentManager {
     }
 
     /// Check consent and prompt if needed. Returns true if OK to proceed.
-    static func ensureConsent() -> Bool {
+    static func ensureConsent(autoAccept: Bool = false) -> Bool {
         if hasAcceptedPrivacyPolicy() {
+            return true
+        }
+
+        if autoAccept {
+            do {
+                try recordAcceptance()
+                print("")
+                print("✓ Privacy policy auto-accepted (--auto-accept).")
+                print("")
+            } catch {
+                print("Warning: Could not save consent preference: \(error.localizedDescription)")
+            }
             return true
         }
 
